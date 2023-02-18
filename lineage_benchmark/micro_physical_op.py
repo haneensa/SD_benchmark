@@ -1,16 +1,3 @@
-# TODO: incremantally add: SD_Capture, SD_Capture_LSN, SD_Capture_Offsets, SD_Capture+Index, SD_Capture+PostPorcess, SD_Capture+Index+PostProcess
-##      add querying single operator logic
-##      add visualization graph and summarization / compute relative overhead and compare between different systems
-# Benchmark DuckDB's physical operators
-# Collect runtime, lineage size, output cardinality
-# %%% SD_Capture:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage  --show_output --csv_append --base /home/haneen/
-# %%% SD_Persist and SD_Query:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage --persist --show_output --csv_append
-# %%% Perm:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1  --show_output --csv_append --base /home/haneen/ --perm
-# %%% Baseline:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1  --show_output --csv_append
 import duckdb
 import pandas as pd
 import argparse
@@ -19,61 +6,11 @@ import numpy as np
 
 from utils import MicroDataZipfan, MicroDataSelective, DropLineageTables, Run
 
-parser = argparse.ArgumentParser(description='Micro Benchmark: Physical Operators')
-# results management
-parser.add_argument('notes', type=str,  help="run notes")
-parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
-parser.add_argument('--csv_append', action='store_true',  help="Append results to old csv")
-parser.add_argument('--show_output', action='store_true',  help="query output")
-parser.add_argument('--profile', action='store_true',  help="Enable profiling")
-# lineage system
-parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
-parser.add_argument('--persist', action='store_true',  help="Persist lineage captured")
-parser.add_argument('--perm', action='store_true',  help="Use Perm Approach with join")
-parser.add_argument('--group_concat', action='store_true',  help="Use Perm Apprach with group concat")
-parser.add_argument('--list', action='store_true',  help="Use Perm Apprach with list")
-# benchmark setting
-parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=1)
-parser.add_argument('--base', type=str, help="Base directory for benchmark_data", default="")
-args = parser.parse_args()
-
-# append log results for each query instance
-# schema:  ["query", "runtime", "cardinality", "groups", "output", "lineage_size", "lineage_type"]
-results = []
-
-if args.enable_lineage and args.persist:
-    lineage_type = "SD_Persist"
-elif args.enable_lineage:
-    lineage_type = "SD_Capture"
-elif args.perm:
-    lineage_type = "Perm"
-else:
-    lineage_type = "Baseline"
-
-con = duckdb.connect(database=':memory:', read_only=False)
-
-if args.perm and args.enable_lineage:
-    args.enable_lineage=False
-
-
-################### TODO: 
-# 1. Check data exists if not, then generate data
-folder = args.base + "benchmark_data/"
-groups = [10, 100, 1000]
-cardinality = [1000, 10000, 100000, 1000000, 5000000, 10000000]
-max_val = 100
-a = 1
-MicroDataZipfan(folder, groups, cardinality, max_val, a)
-selectivity = [0.0, 0.02, 0.2, 0.5, 0.8, 1.0]
-cardinality = [1000000, 5000000, 10000000]
-MicroDataSelective(folder, selectivity, cardinality)
-
-def PersistResults(results, args):
-    filename="micro_benchmark_notes_"+args.notes+".csv"
-    print(filename)
-    header = ["query", "runtime", "cardinality", "groups", "output", "lineage_size", "lineage_type"]
+def PersistResults(results, filename, append):
+    print("Writing results to ", filename, " Append: ", append)
+    header = ["query", "runtime", "cardinality", "groups", "output", "stats", "lineage_type"]
     control = 'w'
-    if args.csv_append:
+    if append:
         control = 'a'
     with open(filename, control) as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -85,7 +22,19 @@ def PersistResults(results, args):
 #   of 'card' cardinality. Goal: see the effect of
 #   large table size on lineage capture overhead
 ########################################################
-def OrderByMicro(groups, cardinality):
+def getStats(con, q):
+    q_list = "select * from queries_list where query='{}'".format(q)
+    query_info = con.execute(q_list).fetchdf()
+    print("Query info: ", query_info)
+    query_id = query_info.loc[0, 'query_id']
+    lineage_size = query_info.loc[0, 'lineage_size']
+    nchunks = query_info.loc[0, 'nchunks']
+    postprocess_time = query_info.loc[0, 'postprocess_time']
+
+    return lineage_size, nchunks, postprocess_time
+
+def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Order By zipfan 1", lineage_type)
     for g in groups:
         for card in cardinality:
             filename = "zipfan_g"+str(g)+"_card"+str(card)+"_a1.csv"
@@ -95,29 +44,20 @@ def OrderByMicro(groups, cardinality):
             con.execute("create table zipf1 as select * from zipf1_view")
             q = "SELECT z FROM zipf1 Order By z"
             table_name = None
-            if args.perm:
+            if lineage_type == "Perm":
                 q = "SELECT rowid, z FROM zipf1 Order By z"
                 q = "create table zipf1_perm_lineage as "+ q
                 table_name='zipf1_perm_lineage'
             avg, output_size = Run(q, args, con, table_name)
-            if args.perm:
+            if lineage_type == "Perm":
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["orderby", avg, card, g, output_size, -1, lineage_type])
-            if args.persist:
-                q_list = "select * from queries_list where query='{}'".format(q)
-                query_info = con.execute(q_list).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_ORDER_BY_1_0.in_index as zipf1_rowid_0,
-                            LINEAGE_{0}_ORDER_BY_1_0.out_index FROM LINEAGE_{0}_ORDER_BY_1_0)""".format(query_id)
-                args.enable_lineage=False
-                avg, _ = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["orderby", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["orderby", avg, card, g, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -128,7 +68,9 @@ def OrderByMicro(groups, cardinality):
 #   different selectivity
 #   TODO: specify data cardinality: [nothing, 50%, 100%]
 ########################################################
-def FilterMicro(selectivity, cardinality):
+def FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown):
+    print("------------ Test Filter zipfan 1 ", lineage_type, " filter_pushdown: ", pushdown)
+    con.execute("PRAGMA set_filter='{}'".format(pushdown))
     for sel in selectivity:
         for card in cardinality:
             filename = "filter_sel"+str(sel)+"_card"+str(card)+".csv"
@@ -138,40 +80,35 @@ def FilterMicro(selectivity, cardinality):
             con.execute("create table t1 as select * from t1_view")
             q = "SELECT v FROM t1 where z=0"
             table_name = None
-            if args.perm:
+            if lineage_type == "Perm":
                 q = "SELECT rowid, v FROM t1 WHERE z=0"
                 q = "create table t1_perm_lineage as "+ q
                 table_name='t1_perm_lineage'
             avg, output_size = Run(q, args, con, table_name)
-            if args.perm:
+            if lineage_type == "Perm":
                 df = con.execute("select count(*) as c from t1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table t1_perm_lineage")
-            results.append(["filter", avg, card, sel, output_size, -1, lineage_type])
-            if args.persist:
-                if output_size == 0:
-                    results.append(["filter", 0, card, sel, 0, 0, "SD_Query"])
-                else:
-                    print(con.execute("PRAGMA show_tables;").fetchdf())
-                    query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                    query_id = query_info.loc[0, 'query_id']
-                    lineage_size = query_info.loc[0, 'lineage_size']
-                    lineage_q = """select count(*) as c from (SELECT * FROM LINEAGE_{0}_SEQ_SCAN_0_0)""".format(query_id)
-                    args.enable_lineage=False
-                    avg, _ = Run(lineage_q, args, con)
-                    args.enable_lineage=True
-                    df = con.execute(lineage_q).fetchdf()
-                    output_size = df.loc[0,'c']
-                    results.append(["filter", avg, card, sel, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            name = "filter"
+            if (pushdown == "clear"):
+                name += "_scan"
+            results.append([name, avg, card, sel, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table t1")
+    con.execute("PRAGMA set_filter='clear'")
 
-################### Perfect Hash Aggregate  ############
+################### int Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
 #   of 'card'. Test on various 'g' values.
 ########################################################
-def perfect_hashAgg(groups, cardinality):
+def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type):
+    print("------------ Test Int Group By zipfan 1, ", lineage_type, agg_type)
+    con.execute("PRAGMA set_agg='{}'".format(agg_type))
     for g in groups:
         for card in cardinality:
             filename = "zipfan_g"+str(g)+"_card"+str(card)+"_a1.csv"
@@ -197,30 +134,22 @@ def perfect_hashAgg(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["perfect_groupby", avg, card, g, output_size, -1, lineage_type+method])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_0.in_index as zipf1_rowid_0,
-                                LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_1.out_index
-                            FROM LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_1, LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_0
-                            WHERE LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_1.in_index=LINEAGE_{0}_PERFECT_HASH_GROUP_BY_2_0.out_index)""".format(query_id)
-                args.enable_lineage=False
-                avg, _ = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["perfect_groupby", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            name = agg_type+"_agg"
+            results.append([name, avg, card, g, output_size,stats, lineage_type+method])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
-
+    con.execute("PRAGMA set_agg='clear'")
 ################### Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
 #   of 'card'. Test on various 'g' values.
 ########################################################
-def hashAgg(groups, cardinality):
+def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Group By zipfan 1, ", lineage_type)
     for g in groups:
         for card in cardinality:
             filename = "zipfan_g"+str(g)+"_card"+str(card)+"_a1.csv"
@@ -248,28 +177,19 @@ def hashAgg(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["groupby", avg, card, g, output_size, -1, lineage_type+method])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_HASH_GROUP_BY_2_0.in_index as zipf1_rowid_0,
-                                LINEAGE_{0}_HASH_GROUP_BY_2_1.out_index
-                            FROM LINEAGE_{0}_HASH_GROUP_BY_2_1, LINEAGE_{0}_HASH_GROUP_BY_2_0
-                            WHERE LINEAGE_{0}_HASH_GROUP_BY_2_1.in_index=LINEAGE_{0}_HASH_GROUP_BY_2_0.out_index)""".format(query_id)
-                args.enable_lineage=False
-                avg, _ = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["groupby", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["groupby", avg, card, g, output_size, stats, lineage_type+method])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
 
 ################### Joins ###########################
 ###### Cross Product
-def crossProduct(cardinality):
+def crossProduct(con, args, folder, lineage_type, cardinality, results):
+    print("------------ Test Cross Product ", lineage_type)
     for card in cardinality:
         # create tables & insert values
         con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
@@ -286,25 +206,21 @@ def crossProduct(cardinality):
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-        results.append(["cross_product", avg, card[0], card[1], output_size, -1, lineage_type])
-        if args.persist:
-            query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-            query_id = query_info.loc[0, 'query_id']
-            lineage_size = query_info.loc[0, 'lineage_size']
-            lineage_q = """select count(*) as c from (SELECT * FROM LINEAGE_{0}_CROSS_PRODUCT_2_1)""".format(query_id)
-            args.enable_lineage=False
-            avg, _ = Run(lineage_q, args, con)
-            args.enable_lineage=True
-            df = con.execute(lineage_q).fetchdf()
-            output_size = df.loc[0,'c']
-            results.append(["cross_product", avg, card, g, output_size, lineage_size,  "SD_Query"])
+        stats = ""
+        if args.enable_lineage and args.stats:
+            lineage_size, nchunks, postprocess_time= getStats(con, q)
+            stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+        results.append(["cross_product", avg, card[0], card[1], output_size, stats, lineage_type])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
         con.execute("drop table t2")
 
 ###### Picewise Merge Join (predicate: less/greater than)
-def mergeJoin(cardinality):
+def join_lessthan(con, args, folder, lineage_type, cardinality, results, jointype):
+    print("------------ Test Join Less than ", jointype)
+    con.execute("PRAGMA set_join='{}'".format(jointype))
+
     for card in cardinality:
         # create tables & insert values
         con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
@@ -321,25 +237,20 @@ def mergeJoin(cardinality):
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-        results.append(["merge_join", avg, card[0], card[1], output_size, -1, lineage_type])
-        if args.persist:
-            query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-            query_id = query_info.loc[0, 'query_id']
-            lineage_size = query_info.loc[0, 'lineage_size']
-            lineage_q = """select count(*) as c from (SELECT * FROM LINEAGE_{0}_PIECEWISE_MERGE_JOIN_2_1)""".format(query_id)
-            args.enable_lineage=False
-            avg, _ = Run(lineage_q, args, con)
-            args.enable_lineage=True
-            df = con.execute(lineage_q).fetchdf()
-            output_size = df.loc[0,'c']
-            results.append(["merge_join", avg, card, g, output_size, lineage_size, "SD_Query"])
+        stats = ""
+        if args.enable_lineage and args.stats:
+            lineage_size, nchunks, postprocess_time= getStats(con, q)
+            stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+        results.append(["join_lessthan"+jointype, avg, card[0], card[1], output_size, stats, lineage_type])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
         con.execute("drop table t2")
+    con.execute("PRAGMA set_join='clear'")
 
 # NLJ (predicate: inequality)
-def NLJ(cardinality):
+def NLJ(con, args, folder, lineage_type, cardinality, results):
+    print("------------ Test Nested Loop Join")
     for card in cardinality:
         # create tables & insert values
         con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
@@ -356,25 +267,19 @@ def NLJ(cardinality):
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-        results.append(["nl_join", avg, card[0], card[1], output_size, -1, lineage_type])
-        if args.persist:
-            query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-            query_id = query_info.loc[0, 'query_id']
-            lineage_size = query_info.loc[0, 'lineage_size']
-            lineage_q = """select count(*) as c from (SELECT * FROM LINEAGE_{0}_NESTED_LOOP_JOIN_2_1)""".format(query_id)
-            args.enable_lineage=False
-            avg, _ = Run(lineage_q, args, con)
-            args.enable_lineage=True
-            df = con.execute(lineage_q).fetchdf()
-            output_size = df.loc[0,'c']
-            results.append(["nl_join", avg, card, g, output_size, lineage_size,  "SD_Query"])
+        stats = ""
+        if args.enable_lineage and args.stats:
+            lineage_size, nchunks, postprocess_time= getStats(con, q)
+            stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+        results.append(["nl_join", avg, card[0], card[1], output_size, stats, lineage_type])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
         con.execute("drop table t2")
 
 # BNLJ (predicate: or)
-def BNLJ(cardinality):
+def BNLJ(con, args, folder, lineage_type, cardinality, results):
+    print("------------ Test Block Nested Loop Join")
     for card in cardinality:
         # create tables & insert values
         con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
@@ -391,26 +296,19 @@ def BNLJ(cardinality):
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-        results.append(["bnl_join", avg, card[0], card[1], output_size, -1, lineage_type])
-        if args.persist:
-            query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-            query_id = query_info.loc[0, 'query_id']
-            lineage_size = query_info.loc[0, 'lineage_size']
-            lineage_q = """select count(*) as c from (SELECT * FROM LINEAGE_{0}_BLOCKWISE_NL_JOIN_2_1)""".format(query_id)
-            args.enable_lineage=False
-            avg, _ = Run(lineage_q, args, con)
-            args.enable_lineage=True
-            df = con.execute(lineage_q).fetchdf()
-            output_size = df.loc[0,'c']
-            results.append(["bnl_join", avg, card, g, output_size, lineage_size,"SD_Query"])
+        stats = ""
+        if args.enable_lineage and args.stats:
+            lineage_size, nchunks, postprocess_time= getStats(con, q)
+            stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+        results.append(["bnl_join", avg, card[0], card[1], output_size, stats, lineage_type])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
         con.execute("drop table t2")
 
-
 # Hash Join
-def HashJoinFKPK(groups, cardinality):
+def HashJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Hash Join FK-PK")
     for g in groups:
         idx = list(range(0, g))
         gid = pd.DataFrame({'id':idx})
@@ -433,32 +331,21 @@ def HashJoinFKPK(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["hash_join_pkfk", avg, card, g, output_size, -1, lineage_type])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_HASH_JOIN_2_1.rhs_index as zipf1_rowid_0,
-                                LINEAGE_{0}_HASH_JOIN_2_0.in_index as gids_rowid_1,
-                                LINEAGE_{0}_HASH_JOIN_2_1.out_index
-                            FROM LINEAGE_{0}_HASH_JOIN_2_1, LINEAGE_{0}_HASH_JOIN_2_0
-                            WHERE LINEAGE_{0}_HASH_JOIN_2_0.out_address=LINEAGE_{0}_HASH_JOIN_2_1.lhs_address)""".format(query_id)
-                args.enable_lineage=False
-                avg, _ = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["hash_join_pkfk", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["hash_join_pkfk", avg, card, g, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
         con.execute("drop table gids")
-
 ############## Hash Join many-to-many ##########
 # zipf1.z is within [1,10] or [1,100]
 # zipf2.z is [1,100]
 # left size=1000, right size: 1000 .. 100000
-def HashJoinMtM(groups, cardinality):
+def HashJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Many to Many Join zipfan 1")
     filename = "zipfan_g100_card1000_a1.csv"
     zipf2 = pd.read_csv(folder+filename)
     con.register('zipf2_view', zipf2)
@@ -481,29 +368,19 @@ def HashJoinMtM(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["hash_join_mtm", avg, card, g, output_size, -1, lineage_type])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_HASH_JOIN_2_1.rhs_index as zipf1_rowid_0,
-                                      LINEAGE_{0}_HASH_JOIN_2_0.in_index as gids_rowid_1,
-                                      LINEAGE_{0}_HASH_JOIN_2_1.out_index
-                                FROM LINEAGE_{0}_HASH_JOIN_2_1, LINEAGE_{0}_HASH_JOIN_2_0
-                                WHERE LINEAGE_{0}_HASH_JOIN_2_0.out_address=LINEAGE_{0}_HASH_JOIN_2_1.lhs_address)""".format(query_id)
-                args.enable_lineage=False
-                avg, output_size = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["hash_join_mtm", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["hash_join_mtm", avg, card, g, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
     con.execute("drop table zipf2")
-
+    return results
 # Index Join (predicate: join on index attribute)
-def IndexJoinFKPK(groups, cardinality):
+def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Index Join PF:FK")
     con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
     con.execute("PRAGMA force_index_join")
     for g in groups:
@@ -529,29 +406,19 @@ def IndexJoinFKPK(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["index_join_pkfk", avg, card, g, output_size, -1, lineage_type])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_INDEX_JOIN_2_0.rhs_index as zipf1_rowid_0,
-                                    LINEAGE_{0}_INDEX_JOIN_2_0.lhs_index as gids_rowid_1,
-                                    LINEAGE_{0}_INDEX_JOIN_2_0.out_index
-                            FROM LINEAGE_{0}_INDEX_JOIN_2_0)""".format(query_id)
-                args.enable_lineage=False
-                avg, output_size = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["index_join_pkfk", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["index_join_pkfk", avg, card, g, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("DROP INDEX i_index")
             con.execute("drop table zipf1")
         con.execute("drop table gids")
 
-
-def IndexJoinMtM(groups, cardinality):
+def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Index Join Many to Many Join zipfan 1")
     con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
     con.execute("PRAGMA force_index_join")
     filename = "zipfan_g100_card1000_a1.csv"
@@ -578,70 +445,13 @@ def IndexJoinMtM(groups, cardinality):
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
-            results.append(["index_join_mtm", avg, card, g, output_size, -1, lineage_type])
-            if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(q)).fetchdf()
-                query_id = query_info.loc[0, 'query_id']
-                lineage_size = query_info.loc[0, 'lineage_size']
-                lineage_q = """select count(*) as c from (SELECT LINEAGE_{0}_INDEX_JOIN_2_0.rhs_index as zipf1_rowid_0,
-                                      LINEAGE_{0}_INDEX_JOIN_2_0.lhs_index as gids_rowid_1,
-                                      LINEAGE_{0}_INDEX_JOIN_2_0.out_index
-                                FROM LINEAGE_{0}_INDEX_JOIN_2_0)""".format(query_id)
-                args.enable_lineage=False
-                avg, output_size = Run(lineage_q, args, con)
-                args.enable_lineage=True
-                df = con.execute(lineage_q).fetchdf()
-                output_size = df.loc[0,'c']
-                results.append(["index_join_mtm", avg, card, g, output_size, lineage_size, "SD_Query"])
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["index_join_mtm", avg, card, g, output_size, stats, lineage_type])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
     con.execute("DROP INDEX i_index")
     con.execute("drop table zipf2")
-
-print("------------ Test Order By zipfan 1")
-groups = [100]
-cardinality = [1000000, 5000000, 10000000]
-OrderByMicro(groups, cardinality)
-print("------------ Test Filter zipfan 1")
-selectivity = [0.0, 0.02, 0.2, 0.5, 0.8, 1.0]
-cardinality = [1000000, 5000000, 10000000]
-FilterMicro(selectivity, cardinality)
-print("------------ Test Perfect Group By zipfan 1")
-groups = [10, 100, 1000]
-cardinality = [1000000, 5000000, 10000000]
-perfect_hashAgg(groups, cardinality)
-print("------------ Test Group By zipfan 1")
-groups = [10, 100, 1000]
-cardinality = [1000000, 5000000, 10000000]
-hashAgg(groups, cardinality)
-print("------------ Test Joins")
-cardinality = [(100, 10000), (4000, 4000), (10000, 10000)]
-print("------------ Test Cross Product")
-crossProduct(cardinality)
-print("------------ Test Piecwise Merge Join")
-mergeJoin(cardinality)
-print("------------ Test Nested Loop Join")
-NLJ(cardinality)
-print("------------ Test Block Nested Loop Join")
-BNLJ(cardinality)
-print("------------ Test Hash Join FK-PK")
-groups = [10, 100, 1000]
-cardinality = [1000000, 5000000, 10000000]
-HashJoinFKPK(groups, cardinality)
-print("------------ Test Many to Many Join zipfan 1")
-groups = [10, 100]
-cardinality = [1000, 10000, 100000]
-HashJoinMtM(groups, cardinality)
-print("------------ Test Index Join PF:FK")
-groups = [10, 100, 1000]
-cardinality = [1000000, 5000000, 10000000]
-IndexJoinFKPK(groups, cardinality)
-print("------------ Test Index Join Many to Many Join zipfan 1")
-groups = [10, 100]
-cardinality = [1000, 10000, 100000]
-IndexJoinMtM(groups, cardinality)
-
-########### Write results to CSV
-if args.save_csv:
-    PersistResults(results)
