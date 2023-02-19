@@ -45,7 +45,7 @@ def Run(q, args, con, table_name=None):
         print(df)
     avg = dur_acc/args.repeat
     print("Avg Time in sec: ", avg, " output size: ", len(df)) 
-    return avg, len(df)
+    return avg, df
 
 """
 z is an integer that follows a zipfian distribution
