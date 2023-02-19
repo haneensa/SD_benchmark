@@ -33,6 +33,35 @@ def getStats(con, q):
 
     return lineage_size, nchunks, postprocess_time
 
+def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
+    print("------------ Test Scan zipfan 1", lineage_type)
+    for g in groups:
+        for card in cardinality:
+            filename = "zipfan_g"+str(g)+"_card"+str(card)+"_a1.csv"
+            print(filename, g, card)
+            zipf1 = pd.read_csv(folder+filename)
+            con.register('zipf1_view', zipf1)
+            con.execute("create table zipf1 as select * from zipf1_view")
+            q = "SELECT * FROM zipf1"
+            table_name = None
+            if lineage_type == "Perm":
+                q = "SELECT rowid, * FROM zipf1"
+                q = "create table zipf1_perm_lineage as "+ q
+                table_name='zipf1_perm_lineage'
+            avg, output_size = Run(q, args, con, table_name)
+            if lineage_type == "Perm":
+                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table zipf1_perm_lineage")
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["scan", avg, card, g, output_size, stats, lineage_type])
+            if args.enable_lineage:
+                DropLineageTables(con)
+            con.execute("drop table zipf1")
+
 def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
     print("------------ Test Order By zipfan 1", lineage_type)
     for g in groups:
@@ -144,6 +173,7 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
                 DropLineageTables(con)
             con.execute("drop table zipf1")
     con.execute("PRAGMA set_agg='clear'")
+
 ################### Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
 #   of 'card'. Test on various 'g' values.

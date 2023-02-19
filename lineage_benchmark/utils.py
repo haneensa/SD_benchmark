@@ -16,6 +16,7 @@ def execute(Q, con, args):
     end = timer()
     if args.enable_lineage:
         con.execute("PRAGMA trace_lineage='OFF'")
+        con.execute("PRAGMA clear_lineage")
     if args.profile:
         con.execute("PRAGMA disable_profiling;")
     return df, end - start
