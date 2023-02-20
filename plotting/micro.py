@@ -12,6 +12,7 @@ df_data = df_data.append(df_data2)
 df_data = df_data[df_data['notes']!="offset_ldata"]
 df_data = df_data[df_data['notes']!="offset_setChildv2"]
 df_data = df_data[df_data['notes']!= "offset_setChild"]
+df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb20_stat.csv")
 pd.set_option("display.max_rows", None)
 
 
@@ -47,10 +48,17 @@ def PlotSelect(filterType):
     df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
     df_fc["capture"] = df_fc.apply(lambda x: x['full']- x['copy'], axis=1)
-    print(df_fc.groupby(['cardinality', 'groups']).mean())
+    # print(df_fc.groupby(['cardinality', 'groups']).mean())
     
-    print(df_fc)
-
+    def normalize(full, nchunks):
+        if nchunks == 0:
+            return full
+        else:
+            return full/nchunks
+    df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['cardinality', "groups"])
+    df_fcstats["overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[0])), axis=1)
+    print(df_fcstats)
+    
     for index, row in df_fc.iterrows():
         data.append(dict(system="SD", ltype="full", overhead=int(row["full"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
         data.append(dict(system="SD", ltype="copy", overhead=int(row["copy"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
