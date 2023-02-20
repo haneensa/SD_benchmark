@@ -8,7 +8,7 @@ from utils import MicroDataZipfan, MicroDataSelective, DropLineageTables, Run
 
 def PersistResults(results, filename, append):
     print("Writing results to ", filename, " Append: ", append)
-    header = ["query", "runtime", "cardinality", "groups", "output", "stats", "lineage_type"]
+    header = ["query", "runtime", "cardinality", "groups", "output", "stats", "lineage_type", "notes"]
     control = 'w'
     if append:
         control = 'a'
@@ -59,7 +59,7 @@ def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["scan", avg, card, g, output_size, stats, lineage_type])
+            results.append(["scan", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -90,7 +90,7 @@ def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["orderby", avg, card, g, output_size, stats, lineage_type])
+            results.append(["orderby", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -131,7 +131,7 @@ def FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, resul
             name = "filter"
             if (pushdown == "clear"):
                 name += "_scan"
-            results.append([name, avg, card, sel, output_size, stats, lineage_type])
+            results.append([name, avg, card, sel, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table t1")
@@ -176,7 +176,7 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
             name = agg_type+"_agg"
-            results.append([name, avg, card, g, output_size,stats, lineage_type+method])
+            results.append([name, avg, card, g, output_size,stats, lineage_type+method, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -221,7 +221,7 @@ def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["groupby", avg, card, g, output_size, stats, lineage_type+method])
+            results.append(["groupby", avg, card, g, output_size, stats, lineage_type+method, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -252,7 +252,7 @@ def crossProduct(con, args, folder, lineage_type, cardinality, results):
         if args.enable_lineage and args.stats:
             lineage_size, nchunks, postprocess_time= getStats(con, q)
             stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-        results.append(["cross_product", avg, card[0], card[1], output_size, stats, lineage_type])
+        results.append(["cross_product", avg, card[0], card[1], output_size, stats, lineage_type, args.notes])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
@@ -285,7 +285,7 @@ def join_lessthan(con, args, folder, lineage_type, cardinality, results, jointyp
         if args.enable_lineage and args.stats:
             lineage_size, nchunks, postprocess_time= getStats(con, q)
             stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-        results.append(["join_lessthan"+jointype, avg, card[0], card[1], output_size, stats, lineage_type])
+        results.append(["join_lessthan"+jointype, avg, card[0], card[1], output_size, stats, lineage_type, args.notes])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
@@ -317,7 +317,7 @@ def NLJ(con, args, folder, lineage_type, cardinality, results):
         if args.enable_lineage and args.stats:
             lineage_size, nchunks, postprocess_time= getStats(con, q)
             stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-        results.append(["nl_join", avg, card[0], card[1], output_size, stats, lineage_type])
+        results.append(["nl_join", avg, card[0], card[1], output_size, stats, lineage_type, args.notes])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
@@ -348,7 +348,7 @@ def BNLJ(con, args, folder, lineage_type, cardinality, results):
         if args.enable_lineage and args.stats:
             lineage_size, nchunks, postprocess_time= getStats(con, q)
             stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-        results.append(["bnl_join", avg, card[0], card[1], output_size, stats, lineage_type])
+        results.append(["bnl_join", avg, card[0], card[1], output_size, stats, lineage_type, args.notes])
         if args.enable_lineage:
             DropLineageTables(con)
         con.execute("drop table t1")
@@ -385,7 +385,7 @@ def HashJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["hash_join_pkfk", avg, card, g, output_size, stats, lineage_type])
+            results.append(["hash_join_pkfk", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -424,7 +424,7 @@ def HashJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["hash_join_mtm", avg, card, g, output_size, stats, lineage_type])
+            results.append(["hash_join_mtm", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
@@ -464,7 +464,7 @@ def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["index_join_pkfk", avg, card, g, output_size, stats, lineage_type])
+            results.append(["index_join_pkfk", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("DROP INDEX i_index")
@@ -505,7 +505,7 @@ def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["index_join_mtm", avg, card, g, output_size, stats, lineage_type])
+            results.append(["index_join_mtm", avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
