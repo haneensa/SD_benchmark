@@ -9,9 +9,6 @@ df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb19_baselineAndPerm.
 df_data["notes"] = "logical"
 df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD.csv")
 df_data = df_data.append(df_data2)
-df_data = df_data[df_data['notes']!="offset_ldata"]
-df_data = df_data[df_data['notes']!="offset_setChildv2"]
-df_data = df_data[df_data['notes']!= "offset_setChild"]
 df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb20_stat.csv")
 pd.set_option("display.max_rows", None)
 
@@ -56,14 +53,14 @@ def PlotSelect(filterType):
         else:
             return full/nchunks
     df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['cardinality', "groups"])
-    df_fcstats["overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[0])), axis=1)
-    print(df_fcstats)
+    df_fcstats["overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[1])), axis=1)
+    df_fcstats = df_fcstats.drop(columns=["runtime", "output_y_y", "output_x", "output_y", "runtime_y_y", "runtime_y_x", "runtime_x_x", "runtime_x_y", "output_x_y", "output_x_x"])
+    print(df_fcstats.groupby(['cardinality', 'groups']).mean())
     
     for index, row in df_fc.iterrows():
         data.append(dict(system="SD", ltype="full", overhead=int(row["full"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
         data.append(dict(system="SD", ltype="copy", overhead=int(row["copy"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
         data.append(dict(system="SD", ltype="capture", overhead=int(row["capture"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
-        print(int(row["full"]))
     
     
 
