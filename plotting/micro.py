@@ -8,7 +8,9 @@ def overhead(base, extra):
 df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb19_baselineAndPerm.csv")
 df_data["notes"] = "logical"
 df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD.csv")
+df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
 df_data = df_data.append(df_data2)
+df_data = df_data.append(df_opt)
 df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb20_stat.csv")
 pd.set_option("display.max_rows", None)
 
@@ -40,7 +42,7 @@ def PlotSelect(filterType):
     #print(df_withB.groupby(['cardinality', 'groups', 'lineage_type_x', 'notes_x']).mean())
     
     df_noCapture = df_withB[df_withB['notes_x'] == "feb20_noCapture"]
-    df_full = df_withB[df_withB['notes_x'] == "feb20_full"]
+    df_full = df_withB[df_withB['notes_x'] == "pipelinesReserve"]
     df_fc = pd.merge(df_noCapture, df_full, how='inner', on = ['cardinality', "groups"])
     df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
