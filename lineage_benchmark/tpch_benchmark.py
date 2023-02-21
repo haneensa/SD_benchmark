@@ -24,10 +24,10 @@ parser.add_argument('--threads', type=int, help="number of threads", default=1)
 args = parser.parse_args()
 
 con = duckdb.connect(database=':memory:', read_only=False)
-prefix = "extension/tpch/dbgen/queries/q"
+prefix = "queries/q"
 table_name=None
 if args.perm:
-    prefix = "extension/tpch/dbgen/queries/perm/q"
+    prefix = "queries/perm/q"
     args.lineage_query = False
     lineage_type = "Logical-RID"
     table_name='lineage'
@@ -50,26 +50,26 @@ for sf in sf_list:
         con.execute("PRAGMA force_parallelism")
     
         for i in range(1, 23):
-            q = prefix+str(i).zfill(2)+".sql"
-            text_file = open(q, "r")
-            tpch = text_file.read()
+            qfile = prefix+str(i).zfill(2)+".sql"
+            text_file = open(qfile, "r")
+            query = text_file.read()
             text_file.close()
             print("%%%%%%%%%%%%%%%% Running Query # ", i, " threads: ", th_id)
-            avg, output_size = Run(tpch, args, con, table_name)
+            avg, output_size = Run(query, args, con, table_name)
             if table_name:
                 con.execute("DROP TABLE "+table_name)
-            Q = " ".join(tpch.split())
-            Q = Q.replace("'", "''")
             if args.show_tables:
                 print(con.execute("PRAGMA show_tables").fetchdf())
             if args.persist:
-                query_info = con.execute("select * from queries_list where query='{}'".format(Q)).fetchdf()
+                query = " ".join(query.split())
+                query = query.replace("'", "''")
+                query_info = con.execute("select * from queries_list where query='{}'".format(query)).fetchdf()
                 query_id = query_info.loc[0, 'query_id']
                 lineage_size = query_info.loc[0, 'lineage_size']
                 print("Query ID: ", query_id, " Lineage Size: ", lineage_size/(1024.0*1024), " MB")
-                results.append([i, avg, sf, args.repeat, lineage_type, th_id, lineage_size])
+                results.append([i, avg, sf, args.repeat, lineage_type, th_id, lineage_size, args.notes])
             else:
-                results.append([i, avg, sf, args.repeat, lineage_type, th_id, 0])
+                results.append([i, avg, sf, args.repeat, lineage_type, th_id, 0, args.notes])
             if args.persist and args.query_lineage:
                 args.enable_lineage=False
                 print("%%%%%% Running Lineage Query # ", i)
@@ -79,14 +79,14 @@ for sf in sf_list:
                 lineage_q = text_file.read()
                 text_file.close()
                 avg, output_size = Run(lineage_q.format(query_id), args, con)
-                results.append([i, avg, sf, args.repeat, "SD_Query", th_id, output_size])
+                results.append([i, avg, sf, args.repeat, "SD_Query", th_id, output_size, args.notes])
                 DropLineageTables(con)
                 args.enable_lineage=True
 
 if args.save_csv:
-    filename="tpch_benchmark_notes_"+args.notes+"_lineage_type_"+lineage_type+".csv"
+    filename="tpch_benchmark_capture.csv"
     print(filename)
-    header = ["query", "runtime", "sf", "repeat", "lineage_type", "n_threads", "size"]
+    header = ["query", "runtime", "sf", "repeat", "lineage_type", "n_threads", "size", "notes"]
     control = 'w'
     if args.csv_append:
         control = 'a'
