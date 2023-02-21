@@ -21,7 +21,6 @@ query,runtime,sf,repeat,lineage_type,n_threads,size,notes
 20,0.14876919180005643,1,5,Baseline,1,0,logical
 21,0.6923821684000359,1,5,Baseline,1,0,logical
 22,0.05929118939993714,1,5,Baseline,1,0,logical
-query,runtime,sf,repeat,lineage_type,n_threads,size,notes
 1,7.690011982000215,1,1,Logical-RID,1,0,logical
 2,0.1278677059999609,1,1,Logical-RID,1,0,logical
 3,0.3204824069998722,1,1,Logical-RID,1,0,logical
