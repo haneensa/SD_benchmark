@@ -102,7 +102,6 @@ index_join_mtm,0.000741502199525712,1000,100,58010,,Baseline,feb24_logical
 index_join_mtm,0.0032265472000290174,10000,100,585466,,Baseline,feb24_logical
 index_join_mtm,0.028859027799990146,100000,100,6010513,,Baseline,feb24_logical
 index_join_mtm,0.2778388680002536,1000000,100,59677253,,Baseline,feb24_logical
-query,runtime,cardinality,groups,output,stats,lineage_type,notes
 scan,0.01680833359969256,1000000,100,1000000,,Perm,feb24_logical
 scan,0.08474038620042848,5000000,100,5000000,,Perm,feb24_logical
 scan,0.16872032060018682,10000000,100,10000000,,Perm,feb24_logical
