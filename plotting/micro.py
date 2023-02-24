@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from pygg import *
 
@@ -15,6 +16,8 @@ df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb20_stat.csv")
 pd.set_option("display.max_rows", None)
 
 
+df_stats = df_stats.drop(columns=["notes", "output", "runtime"])
+
 # 1. Partition by query time [orderby, filter, filter_scan, perfect_agg, reg_agg, groupby
 #   a. Order by: vary cardinality (1M, 5M, 10M)
 #   b. Filter & Filter Scan: vary cardinality (1M, 5M, 10M), vary selectivity: 0, 0.2, ,0.5, 1.0
@@ -24,7 +27,7 @@ pd.set_option("display.max_rows", None)
 #   f. index_join pkfk: 
 
 def PlotSelect(filterType):
-    print("Summary for : ", filterType)
+    print("****************** Summary for : ", filterType)
     df = df_data[df_data['query'] == filterType]
     df = df.drop(columns=["query", "stats"])
     #df = df[df['lineage_type'] != "Perm"]
@@ -56,9 +59,16 @@ def PlotSelect(filterType):
             return full/nchunks
     df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['cardinality', "groups"])
     df_fcstats["overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[1])), axis=1)
-    df_fcstats = df_fcstats.drop(columns=["runtime", "output_y_y", "output_x", "output_y", "runtime_y_y", "runtime_y_x", "runtime_x_x", "runtime_x_y", "output_x_y", "output_x_x"])
-    print(df_fcstats.groupby(['cardinality', 'groups']).mean())
-    
+    df_fcstats = df_fcstats.drop(columns=["output_y_y", "runtime_y_y", "runtime_y_x", "runtime_x_x", "runtime_x_y", "output_x_y", "output_x_x"])
+    #print(df_fcstats.groupby(['cardinality', 'groups']).mean())
+    print("Perm ---> ", df_withB.groupby(["lineage_type_x"])["roverhead"].aggregate(["mean", "min", "max"]))
+    keys = ["copy", "full", "capture", "overhead_nor"]
+    for k in keys:
+        summary = df_fcstats.groupby(['lineage_type'])[k].aggregate(['mean', 'min','max'])
+        print(k, "--->", summary)
+    summary = df_fcstats.groupby(['lineage_type', "cardinality"])["overhead_nor"].aggregate(['mean', 'min','max'])
+    print(k, "--->", summary)
+    #print(df_fcstats)
     for index, row in df_fc.iterrows():
         data.append(dict(system="SD", ltype="full", overhead=int(row["full"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
         data.append(dict(system="SD", ltype="copy", overhead=int(row["copy"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
@@ -83,7 +93,6 @@ p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~output", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
-
 data = []
 PlotSelect("join_lessthannl")
 PlotSelect("join_lessthanmerge")
