@@ -8,11 +8,11 @@ def overhead(base, extra):
 
 df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb19_baselineAndPerm.csv")
 df_data["notes"] = "logical"
-df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD.csv")
-df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
+df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb24_SD.csv")
+#df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
 df_data = df_data.append(df_data2)
-df_data = df_data.append(df_opt)
-df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stat.csv")
+#df_data = df_data.append(df_opt)
+df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stats.csv")
 pd.set_option("display.max_rows", None)
 
 
@@ -44,13 +44,13 @@ def PlotSelect(filterType):
     # capture = full - copy
     #print(df_withB.groupby(['cardinality', 'groups', 'lineage_type_x', 'notes_x']).mean())
     
-    df_noCapture = df_withB[df_withB['notes_x'] == "feb20_noCapture"]
-    df_full = df_withB[df_withB['notes_x'] == "pipelinesReserve"]
-    df_fc = pd.merge(df_noCapture, df_full, how='inner', on = ['cardinality', "groups"])
+    df_copy = df_withB[df_withB['notes_x'] == "feb24_copy"]
+    df_full = df_withB[df_withB['notes_x'] == "feb24_SD"]
+    df_fc = pd.merge(df_copy, df_full, how='inner', on = ['cardinality', "groups"])
     df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
     df_fc["capture"] = df_fc.apply(lambda x: x['full']- x['copy'], axis=1)
-    # print(df_fc.groupby(['cardinality', 'groups']).mean())
+    print(df_fc.groupby(['cardinality', 'groups']).mean())
     
     def normalize(full, nchunks):
         if nchunks == 0:
@@ -70,7 +70,7 @@ def PlotSelect(filterType):
     print(k, "--->", summary)
     #print(df_fcstats)
     for index, row in df_fcstats.iterrows():
-        vals = ["full"]#, "copy", "capture"]
+        vals = ["full", "copy", "capture"]
         for v in vals:
             data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=int(row[v]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
     
@@ -91,12 +91,10 @@ data = []
 PlotSelect("perfect_agg")
 PlotSelect("reg_agg")
 
-"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
-"""
 
 alldata.extend(data)
 
@@ -109,22 +107,18 @@ PlotSelect("index_join_pkfk")
 PlotSelect("index_join_mtm")
 alldata.extend(data)
 
-"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_njoins.png", p,  width=10, height=10)
-"""
 
 data = []
 PlotSelect("hash_join_pkfk")
 PlotSelect("hash_join_mtm")
-"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_hashjoins.png", p,  width=10, height=10)
-"""
 
 alldata.extend(data)
 
