@@ -12,7 +12,7 @@ df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD.csv")
 df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
 df_data = df_data.append(df_data2)
 df_data = df_data.append(df_opt)
-df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb20_stat.csv")
+df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stat.csv")
 pd.set_option("display.max_rows", None)
 
 
@@ -69,10 +69,10 @@ def PlotSelect(filterType):
     summary = df_fcstats.groupby(['lineage_type', "cardinality"])["overhead_nor"].aggregate(['mean', 'min','max'])
     print(k, "--->", summary)
     #print(df_fcstats)
-    for index, row in df_fc.iterrows():
+    for index, row in df_fcstats.iterrows():
         vals = ["full"]#, "copy", "capture"]
         for v in vals:
-            data.append(dict(system="SD", g=row["groups"], card=row["cardinality"], ltype=v, overhead=int(row[v]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+            data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=int(row[v]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
     
     
 
@@ -128,8 +128,8 @@ ggsave("micro_overhead_hashjoins.png", p,  width=10, height=10)
 
 alldata.extend(data)
 
-k = "g"
-p = ggplot(alldata, aes(x='card', y='overhead', color=k, fill=k, group=k))
+k = "card"
+p = ggplot(alldata, aes(x='nchunks', y='overhead', color=k, fill=k, group=k))
 p += geom_point(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~ltype~optype", scales=esc("free_y"))
 ggsave("micro.png", p,  width=10, height=10)
