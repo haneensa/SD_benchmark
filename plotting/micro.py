@@ -37,7 +37,7 @@ def PlotSelect(filterType):
     df_withB= df_withB[df_withB["lineage_type_x"]!="Baseline"]
     #for index, row in df_withB.iterrows():
     #    if (row["lineage_type_x"] == "Perm"):
-    #        data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+    #        data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
 
     # full = copy + capture
     # noCapture = copy
@@ -70,12 +70,13 @@ def PlotSelect(filterType):
     print(k, "--->", summary)
     #print(df_fcstats)
     for index, row in df_fc.iterrows():
-        data.append(dict(system="SD", ltype="full", overhead=int(row["full"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
-        data.append(dict(system="SD", ltype="copy", overhead=int(row["copy"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
-        data.append(dict(system="SD", ltype="capture", overhead=int(row["capture"]), output=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+        vals = ["full"]#, "copy", "capture"]
+        for v in vals:
+            data.append(dict(system="SD", g=row["groups"], card=row["cardinality"], ltype=v, overhead=int(row[v]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
     
     
 
+alldata = []
 data = []
 PlotSelect("scan")
 PlotSelect("orderby")
@@ -83,16 +84,22 @@ PlotSelect("filter")
 PlotSelect("filter_scan")
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~output", scales=esc("free_y"))
+p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_scans.png", p,  width=10, height=10)
-
+alldata.extend(data)
 data = []
 PlotSelect("perfect_agg")
 PlotSelect("reg_agg")
+
+"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~output", scales=esc("free_y"))
+p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
+"""
+
+alldata.extend(data)
+
 data = []
 PlotSelect("join_lessthannl")
 PlotSelect("join_lessthanmerge")
@@ -100,17 +107,29 @@ PlotSelect("bnl_join")
 PlotSelect("cross_product")
 PlotSelect("index_join_pkfk")
 PlotSelect("index_join_mtm")
+alldata.extend(data)
 
+"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~output", scales=esc("free_y"))
+p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_njoins.png", p,  width=10, height=10)
-
+"""
 
 data = []
 PlotSelect("hash_join_pkfk")
 PlotSelect("hash_join_mtm")
+"""
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~output", scales=esc("free_y"))
+p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_hashjoins.png", p,  width=10, height=10)
+"""
+
+alldata.extend(data)
+
+k = "g"
+p = ggplot(alldata, aes(x='card', y='overhead', color=k, fill=k, group=k))
+p += geom_point(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
+p += facet_wrap("~ltype~optype", scales=esc("free_y"))
+ggsave("micro.png", p,  width=10, height=10)
