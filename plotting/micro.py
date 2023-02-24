@@ -6,7 +6,7 @@ from pygg import *
 def overhead(base, extra):
     return max(((extra-base)/base)*100, 0)
 
-df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb19_baselineAndPerm.csv")
+df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb24_logical.csv")
 df_data["notes"] = "logical"
 df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb24_SD.csv")
 #df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
