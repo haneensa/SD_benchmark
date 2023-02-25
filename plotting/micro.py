@@ -6,12 +6,16 @@ from pygg import *
 def overhead(base, extra):
     return max(((extra-base)/base)*100, 0)
 
+    
+lcopy = "feb24c_copy"
+lfull = "pipelinesReserve"
+
 df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb24_logical.csv")
 df_data["notes"] = "logical"
 df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb24c_SD.csv")
-#df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
+df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
 df_data = df_data.append(df_data2)
-#df_data = df_data.append(df_opt)
+df_data = df_data.append(df_opt)
 #df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stats.csv")
 df_stats = df_data[df_data['notes'] == "feb24c_stats"]
 pd.set_option("display.max_rows", None)
@@ -44,9 +48,8 @@ def PlotSelect(filterType):
     # noCapture = copy
     # capture = full - copy
     #print(df_withB.groupby(['cardinality', 'groups', 'lineage_type_x', 'notes_x']).mean())
-    
-    df_copy = df_withB[df_withB['notes_x'] == "feb24c_copy"]
-    df_full = df_withB[df_withB['notes_x'] == "feb24c_full"]
+    df_copy = df_withB[df_withB['notes_x'] == lcopy]
+    df_full = df_withB[df_withB['notes_x'] == lfull]
     df_fc = pd.merge(df_copy, df_full, how='inner', on = ['cardinality', "groups"])
     df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
@@ -90,7 +93,6 @@ p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
 
 alldata.extend(data)
-"""
 PlotSelect("scan")
 PlotSelect("orderby")
 PlotSelect("filter")
@@ -125,6 +127,7 @@ ggsave("micro_overhead_hashjoins.png", p,  width=10, height=10)
 
 alldata.extend(data)
 
+"""
 k = "card"
 p = ggplot(alldata, aes(x='nchunks', y='overhead', color=k, fill=k, group=k))
 p += geom_point(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
