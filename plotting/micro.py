@@ -7,15 +7,14 @@ def overhead(base, extra):
     return max(((extra-base)/base)*100, 0)
 
     
-lcopy = "feb24c_copy"
-lfull = "pipelinesReserve"
+lcopy = "feb26b_copy"
+lfull = "feb26b_full"
 
 df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_logical.csv")
 df_data["notes"] = "logical"
 temp = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_SD.csv")
 df_data = df_data.append(temp)
-#df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stats.csv")
-df_stats = df_data[df_data['notes'] == "feb24c_stats"]
+df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_stats.csv")
 pd.set_option("display.max_rows", None)
 
 
@@ -33,14 +32,14 @@ def PlotSelect(filterType):
     print("****************** Summary for : ", filterType)
     df = df_data[df_data['query'] == filterType]
     df = df.drop(columns=["query", "stats"])
-    #df = df[df['lineage_type'] != "Perm"]
+    df = df[df['lineage_type'] != "Perm"]
     df_Baseline = df[df["lineage_type"]=="Baseline"]
     df_withB = pd.merge(df, df_Baseline, how='inner', on = ['cardinality', "groups"])
     df_withB["roverhead"] = df_withB.apply(lambda x: overhead(x['runtime_y'], x['runtime_x']), axis=1)
     df_withB= df_withB[df_withB["lineage_type_x"]!="Baseline"]
-    #for index, row in df_withB.iterrows():
-    #    if (row["lineage_type_x"] == "Perm"):
-    #        data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+    for index, row in df_withB.iterrows():
+        if (row["lineage_type_x"] == "Perm"):
+            data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
 
     # full = copy + capture
     # noCapture = copy
@@ -90,6 +89,7 @@ p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
 
+data = []
 alldata.extend(data)
 PlotSelect("scan")
 PlotSelect("orderby")
@@ -106,8 +106,6 @@ PlotSelect("join_lessthannl")
 PlotSelect("join_lessthanmerge")
 PlotSelect("bnl_join")
 PlotSelect("cross_product")
-PlotSelect("index_join_pkfk")
-PlotSelect("index_join_mtm")
 alldata.extend(data)
 
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
@@ -116,12 +114,16 @@ p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_njoins.png", p,  width=10, height=10)
 
 data = []
+PlotSelect("index_join_pkfkFalse")
+PlotSelect("index_join_pkfkTrue")
+PlotSelect("index_join_mtmFalse")
+PlotSelect("index_join_mtmTrue")
 PlotSelect("hash_join_pkfk")
 PlotSelect("hash_join_mtm")
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
-ggsave("micro_overhead_hashjoins.png", p,  width=10, height=10)
+ggsave("micro_overhead_hashjoins.png", p,  width=15, height=10)
 
 alldata.extend(data)
 
