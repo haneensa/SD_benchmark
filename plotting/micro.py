@@ -10,12 +10,10 @@ def overhead(base, extra):
 lcopy = "feb24c_copy"
 lfull = "pipelinesReserve"
 
-df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb24_logical.csv")
+df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_logical.csv")
 df_data["notes"] = "logical"
-df_data2 = pd.read_csv("eval_results/micro_benchmark_notes_feb24c_SD.csv")
-df_opt = pd.read_csv("eval_results/micro_benchmark_notes_feb20_SD_opts.csv")
-df_data = df_data.append(df_data2)
-df_data = df_data.append(df_opt)
+temp = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_SD.csv")
+df_data = df_data.append(temp)
 #df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb24_stats.csv")
 df_stats = df_data[df_data['notes'] == "feb24c_stats"]
 pd.set_option("display.max_rows", None)
