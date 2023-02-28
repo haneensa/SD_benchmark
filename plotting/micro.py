@@ -10,7 +10,7 @@ def overhead(base, extra):
 lcopy = "feb26b_copy"
 lfull = "feb26b_full"
 
-df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_logical.csv")
+df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb26c_logical.csv")
 df_data["notes"] = "logical"
 temp = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_SD.csv")
 df_data = df_data.append(temp)
@@ -37,9 +37,7 @@ def PlotSelect(filterType):
     df_withB = pd.merge(df, df_Baseline, how='inner', on = ['cardinality', "groups"])
     df_withB["roverhead"] = df_withB.apply(lambda x: overhead(x['runtime_y'], x['runtime_x']), axis=1)
     df_withB= df_withB[df_withB["lineage_type_x"]!="Baseline"]
-    for index, row in df_withB.iterrows():
-        if (row["lineage_type_x"] == "Perm"):
-            data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+    
 
     # full = copy + capture
     # noCapture = copy
@@ -48,34 +46,44 @@ def PlotSelect(filterType):
     df_copy = df_withB[df_withB['notes_x'] == lcopy]
     df_full = df_withB[df_withB['notes_x'] == lfull]
     df_fc = pd.merge(df_copy, df_full, how='inner', on = ['cardinality', "groups"])
-    df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
+    df_fc = df_fc[["full", "copy", "output", "cardinality", "groups"]]
     df_fc["capture"] = df_fc.apply(lambda x: x['full']- x['copy'], axis=1)
     print(df_fc.groupby(['cardinality', 'groups']).mean())
     
     def normalize(full, nchunks):
+        #full *= 100
         if nchunks == 0:
             return full
         else:
             return full/nchunks
     df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['cardinality', "groups"])
-    df_fcstats["overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[1])), axis=1)
-    df_fcstats = df_fcstats.drop(columns=["output_y_y", "runtime_y_y", "runtime_y_x", "runtime_x_x", "runtime_x_y", "output_x_y", "output_x_x"])
+    df_fcstats["full_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['full'],float(x['stats'].split(',')[1])), axis=1)
+    df_fcstats["capture_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['capture'],float(x['stats'].split(',')[1])), axis=1)
+    df_fcstats["copy_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['copy'],float(x['stats'].split(',')[1])), axis=1)
+    df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/(1024.0*1024.0), axis=1)
+    df_fcstats = df_fcstats[["stats", "size", "output", "full_overhead_nor", "capture_overhead_nor", "copy_overhead_nor", "cardinality", "groups"]]
     #print(df_fcstats.groupby(['cardinality', 'groups']).mean())
     print("Perm ---> ", df_withB.groupby(["lineage_type_x"])["roverhead"].aggregate(["mean", "min", "max"]))
-    keys = ["copy", "full", "capture", "overhead_nor"]
+
+    keys = ["full_overhead_nor", "capture_overhead_nor", "copy_overhead_nor", "size"]
     for k in keys:
-        summary = df_fcstats.groupby(['lineage_type'])[k].aggregate(['mean', 'min','max'])
+        # compute speedup
+        summary = df_fcstats[k].aggregate(['mean', 'min','max'])
         print(k, "--->", summary)
-    summary = df_fcstats.groupby(['lineage_type', "cardinality"])["overhead_nor"].aggregate(['mean', 'min','max'])
+    summary = df_fcstats.groupby(["cardinality"])["full_overhead_nor"].aggregate(['mean', 'min','max'])
     print(k, "--->", summary)
-    #print(df_fcstats)
+    df_fc = pd.merge(df_fc, df_fcstats, how='inner', on = ['cardinality', "groups"])
     for index, row in df_fc.iterrows():
         vals = ["full", "copy", "capture"]
         for v in vals:
-            data.append(dict(system="SD", g=row["groups"], card=row["cardinality"], ltype=v, overhead=row[v], gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+            data.append(dict(system="SD", g=row["groups"], nor=row[v+"_overhead_nor"], card=row["cardinality"], ltype=v, overhead=row[v], gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
             #data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=10, gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
             print(data[len(data)-1])
+    
+    for index, row in df_withB.iterrows():
+        if (row["lineage_type_x"] == "Perm"):
+            data.append(dict(system="Perm", ltype="Perm", overhead=int(row["roverhead"]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
     
     
 
@@ -88,6 +96,7 @@ p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
+alldata.extend(data)
 
 data = []
 alldata.extend(data)
@@ -126,6 +135,16 @@ p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_hashjoins.png", p,  width=15, height=10)
 
 alldata.extend(data)
+
+
+# what kind of graph do I want?
+# mean of capture and copy and full per operator
+# x-axis: operator; y-axis: normalized capture overhead
+k = "ltype"
+p = ggplot(alldata, aes(x='optype', y='nor', color=k, fill=k, group=k))
+p += geom_point(stat=esc('summary'), fun=esc('mean'), alpha=0.8) + coord_flip()
+p += axis_labels('Physical Operator', "Relative Overhead per output chunk (%)", "discrete")#, "log10")
+ggsave("normalized_overhead.png", p,  width=20, height=10)
 
 """
 k = "card"
