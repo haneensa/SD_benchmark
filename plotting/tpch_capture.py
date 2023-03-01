@@ -22,27 +22,44 @@ legend_bottom = legend + theme(**{
 
 }),
 # for each query, 
-def overhead(base, extra):
-    return max(((extra-base))*100, 0)
-    #return max(((extra-base)/base)*100, 0)
+def relative_overhead(base, extra): # in %
+    return max(((extra-base)/base)*100, 0)
 
-df = pd.read_csv("eval_results/tpch_benchmark_capture.csv")
+def overhead(base, extra): # in ms
+    return max(((extra-base))*1000, 0)
+
+df = pd.read_csv("eval_results/tpch_benchmark_capture_feb28.csv")
+df = df[df["sf"] == 1]
 pd.set_option("display.max_rows", None)
 
 data = []
 
+df = df.drop(columns=["stats", "repeat"])
 df_Baseline = df[df["lineage_type"]=="Baseline"]
+df_Baseline = df_Baseline[["runtime", "query", "sf", "n_threads", "output"]]
 df_withB = pd.merge(df, df_Baseline, how='inner', on = ['query', 'sf', 'n_threads'])
-df_withB["roverhead"] = df_withB.apply(lambda x: overhead(x['runtime_y'], x['runtime_x']), axis=1)
-df_withB= df_withB[df_withB["lineage_type_x"]!="Baseline"]
-df_withB= df_withB[df_withB["notes_x"]!="SDv1"]
+df_withB["rel_overhead"] = df_withB.apply(lambda x: relative_overhead(x['runtime_y'], x['runtime_x']), axis=1)
+df_withB["overhead"] = df_withB.apply(lambda x: overhead(x['runtime_y'], x['runtime_x']), axis=1)
+df_withB["outputFan"] = df_withB.apply(lambda x: x['output_x']/ x['output_y'], axis=1)
+df_withB= df_withB[df_withB["lineage_type"]!="Baseline"]
+print(df_withB)
+df_full = df_withB[df_withB["notes"] == "feb28_full"]
+df_copy = df_withB[df_withB["notes"] == "feb28_copy"]
+df_fc = pd.merge(df_copy, df_full, how='inner', on = ['query', "sf", 'n_threads'])
 for index, row in df_withB.iterrows():
-    #data.append(dict(system=row['lineage_type_x']+row["notes_x"], overhead=int(row["roverhead"]), qid=row['query']))
-    data.append(dict(system=row['lineage_type_x'], overhead=int(row["roverhead"]), qid=row['query']))
+    name = row['lineage_type'] + row["notes"]
+    data.append(dict(system=name, overhead=row["overhead"], rel_overhead=row["rel_overhead"], qid=row['query']))
 
 p = ggplot(data, aes(x='qid', y='overhead', color='system', fill='system', group='system', shape='system'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Runtime Overhead % (log)", "discrete", "log10")
+p += axis_labels('Query', "Runtime Overhead (ms)", "discrete", "log10")
 #p += ylim(lim=[0,300])
 p += legend_bottom
 ggsave("tpch_overhead.png", p,  width=6, height=3)
+
+p = ggplot(data, aes(x='qid', y='rel_overhead', color='system', fill='system', group='system', shape='system'))
+p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+p += axis_labels('Query', "Runtime Relative Overhead % (log)", "discrete", "log10")
+#p += ylim(lim=[0,300])
+p += legend_bottom
+ggsave("tpch_relative_overhead.png", p,  width=6, height=3)
