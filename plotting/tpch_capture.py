@@ -23,7 +23,8 @@ legend_bottom = legend + theme(**{
 }),
 # for each query, 
 def overhead(base, extra):
-    return max(((extra-base)/base)*100, 0)
+    return max(((extra-base))*100, 0)
+    #return max(((extra-base)/base)*100, 0)
 
 df = pd.read_csv("eval_results/tpch_benchmark_capture.csv")
 pd.set_option("display.max_rows", None)
@@ -41,7 +42,7 @@ for index, row in df_withB.iterrows():
 
 p = ggplot(data, aes(x='qid', y='overhead', color='system', fill='system', group='system', shape='system'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Relative Overhead % (log)", "discrete", "log10")
+p += axis_labels('Query', "Runtime Overhead % (log)", "discrete", "log10")
 #p += ylim(lim=[0,300])
 p += legend_bottom
 ggsave("tpch_overhead.png", p,  width=6, height=3)

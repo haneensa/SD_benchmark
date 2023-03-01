@@ -4,17 +4,19 @@ from pygg import *
 
 # for each query, 
 def overhead(base, extra):
+    return (extra-base)*100
     return max(((extra-base)/base)*100, 0)
 
     
-lcopy = "feb26b_copy"
-lfull = "feb26b_full"
+lcopy = "feb27_copy"
+lfull = "feb27_full"
 
-df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb26c_logical.csv")
+df_data = pd.read_csv("eval_results/micro_benchmark_notes_feb27_logical.csv")
 df_data["notes"] = "logical"
-temp = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_SD.csv")
+temp = pd.read_csv("eval_results/micro_benchmark_notes_feb27_SD.csv")
+df_stats = temp[temp["notes"]=="feb27_stats"]#pd.read_csv("eval_results/micro_benchmark_notes_feb26b_stats.csv")
+temp = temp[temp["notes"]!="feb27_stats"]
 df_data = df_data.append(temp)
-df_stats = pd.read_csv("eval_results/micro_benchmark_notes_feb26b_stats.csv")
 pd.set_option("display.max_rows", None)
 
 
@@ -32,7 +34,7 @@ def PlotSelect(filterType):
     print("****************** Summary for : ", filterType)
     df = df_data[df_data['query'] == filterType]
     df = df.drop(columns=["query", "stats"])
-    df = df[df['lineage_type'] != "Perm"]
+    #df = df[df['lineage_type'] != "Perm"]
     df_Baseline = df[df["lineage_type"]=="Baseline"]
     df_withB = pd.merge(df, df_Baseline, how='inner', on = ['cardinality', "groups"])
     df_withB["roverhead"] = df_withB.apply(lambda x: overhead(x['runtime_y'], x['runtime_x']), axis=1)
@@ -49,7 +51,7 @@ def PlotSelect(filterType):
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
     df_fc = df_fc[["full", "copy", "output", "cardinality", "groups"]]
     df_fc["capture"] = df_fc.apply(lambda x: x['full']- x['copy'], axis=1)
-    print(df_fc.groupby(['cardinality', 'groups']).mean())
+    #print(df_fc.groupby(['cardinality', 'groups']).mean())
     
     def normalize(full, nchunks):
         #full *= 100
@@ -63,23 +65,26 @@ def PlotSelect(filterType):
     df_fcstats["copy_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['copy'],float(x['stats'].split(',')[1])), axis=1)
     df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/(1024.0*1024.0), axis=1)
     df_fcstats = df_fcstats[["stats", "size", "output", "full_overhead_nor", "capture_overhead_nor", "copy_overhead_nor", "cardinality", "groups"]]
-    #print(df_fcstats.groupby(['cardinality', 'groups']).mean())
-    print("Perm ---> ", df_withB.groupby(["lineage_type_x"])["roverhead"].aggregate(["mean", "min", "max"]))
+    
+    perm_overhead = df_withB[df_withB["lineage_type_x"]=="Perm"]["roverhead"].aggregate(["mean", "min", "max"])
+    sd_overhead = df_fc["full"].aggregate(["mean", "min", "max"])
+    print("Perm: ", perm_overhead)
+    print("SD: ", sd_overhead)
+    print("Speedup: ", perm_overhead / sd_overhead)
 
     keys = ["full_overhead_nor", "capture_overhead_nor", "copy_overhead_nor", "size"]
     for k in keys:
         # compute speedup
         summary = df_fcstats[k].aggregate(['mean', 'min','max'])
-        print(k, "--->", summary)
+        #print(k, "--->", summary)
     summary = df_fcstats.groupby(["cardinality"])["full_overhead_nor"].aggregate(['mean', 'min','max'])
-    print(k, "--->", summary)
+    #print(k, "--->", summary)
     df_fc = pd.merge(df_fc, df_fcstats, how='inner', on = ['cardinality', "groups"])
     for index, row in df_fc.iterrows():
         vals = ["full", "copy", "capture"]
         for v in vals:
             data.append(dict(system="SD", g=row["groups"], nor=row[v+"_overhead_nor"], card=row["cardinality"], ltype=v, overhead=row[v], gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
             #data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=10, gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
-            print(data[len(data)-1])
     
     for index, row in df_withB.iterrows():
         if (row["lineage_type_x"] == "Perm"):
@@ -123,10 +128,8 @@ p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_njoins.png", p,  width=10, height=10)
 
 data = []
-PlotSelect("index_join_pkfkFalse")
-PlotSelect("index_join_pkfkTrue")
-PlotSelect("index_join_mtmFalse")
-PlotSelect("index_join_mtmTrue")
+PlotSelect("index_join_12MFalse")
+PlotSelect("index_join_12MTrue")
 PlotSelect("hash_join_pkfk")
 PlotSelect("hash_join_mtm")
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
