@@ -17,7 +17,7 @@ import argparse
 import csv
 import numpy as np
 
-from utils import MicroDataZipfan, MicroDataSelective, DropLineageTables, Run
+from utils import MicroDataZipfan, MicroDataSelective, DropLineageTables, Run, MicroDataMcopies
 from micro_physical_op import *
 
 parser = argparse.ArgumentParser(description='Micro Benchmark: Physical Operators')
@@ -69,7 +69,6 @@ MicroDataZipfan(folder, groups, cardinality, max_val, a)
 selectivity = [0.0, 0.02, 0.2, 0.5, 0.8, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 MicroDataSelective(folder, selectivity, cardinality)
-
 ################### Order By ###########################
 ##  order on 'z' with 'g' unique values and table size
 #   of 'card' cardinality. Goal: see the effect of
@@ -112,13 +111,13 @@ hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
 ########################################################
 print("------------ Test Joins-----------")
 
-cardinality = [(100, 10000), (4000, 4000), (10000, 10000)]
+cardinality = [(1000, 1000), (1000, 10000), (1000, 100000)]
 jointype = "merge"
 join_lessthan(con, args, folder, lineage_type, cardinality, results, jointype)
 jointype = "nl"
 join_lessthan(con, args, folder, lineage_type, cardinality, results, jointype)
 
-#NLJ(con, args, folder, lineage_type, cardinality, results)
+NLJ(con, args, folder, lineage_type, cardinality, results)
 BNLJ(con, args, folder, lineage_type, cardinality, results)
 
 crossProduct(con, args, folder, lineage_type, cardinality, results)
@@ -133,18 +132,17 @@ HashJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
 # zipf2.z is [1,100]
 # left size=1000, right size: 1000 .. 100000
 groups = [10, 100]
-cardinality = [1000, 10000, 100000]
+cardinality = [1000, 10000, 100000, 1000000]
 HashJoinMtM(con, args, folder, lineage_type, groups, cardinality, results)
 
-############## Index Join (predicate: join on index attribute)
-groups = [10, 100, 1000]
-cardinality = [1000000, 5000000, 10000000]
-IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
-
-############ Index Join (M:M)
-groups = [10, 100]
-cardinality = [1000, 10000, 100000]
-IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results)
+############ Index Join (1:M)
+copies = [1, 10, 50, 100, 1000, 10000]
+cardinality = [1000, 10000]
+MicroDataMcopies(folder, copies, cardinality, max_val)
+index_scan = False
+IndexJoin12M(con, args, folder, lineage_type, copies, cardinality, results, index_scan)
+index_scan = True
+IndexJoin12M(con, args, folder, lineage_type, copies, cardinality, results, index_scan)
 
 ########### write results to csv
 if args.save_csv:

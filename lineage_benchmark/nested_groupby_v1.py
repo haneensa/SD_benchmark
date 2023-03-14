@@ -7,15 +7,17 @@ import argparse
 import csv
 import os.path
 
-from utils import execute, ZipfanGenerator, DropLineageTables, Run
+from utils import execute, ZipfanGenerator, DropLineageTables, Run, getStats
 
 parser = argparse.ArgumentParser(description='Micro Benchmark: Physical Join Operators')
 parser.add_argument('notes', type=str,  help="run notes")
 parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
+parser.add_argument('--csv_append', action='store_true',  help="Append results to old csv")
 parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=5)
 parser.add_argument('--show_output', action='store_true',  help="query output")
 parser.add_argument('--profile', action='store_true',  help="Enable profiling")
 parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
+parser.add_argument('--stats', action='store_true',  help="get lineage size, nchunks and postprocess time")
 parser.add_argument('--persist', action='store_true',  help="Lineage persist")
 parser.add_argument('--perm', action='store_true',  help="run perm lineage queries")
 args = parser.parse_args()
@@ -40,18 +42,22 @@ def SmokedDuck(q, q_lineage, level):
     args.enable_lineage = True
     args.profile=old_profile_val
     avg, output_size = Run(q, args, con)
+    stats = ""
+    if args.stats:
+        lineage_size, nchunks, postprocess_time= getStats(con, q)
+        stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
     if args.persist:
         args.enable_lineage = False
         args.profile=False
-        results.append(["SD_Persist", "level2", avg, output_size, card, N[0], N[1], N[2], N[3]])
+        results.append(["SD_Persist", "level2", avg, output_size, card, N[0], N[1], N[2], N[3], args.notes])
         query_id = con.execute("select max(query_id) as qid from queries_list").fetchdf().loc[0, 'qid'] - 1
         avg, output_size = Run(q_lineage.format(query_id), args, con, "lineage")
         output_size = con.execute("select count(*) as c from lineage").fetchdf().loc[0, 'c']
-        results.append(["SD_Query", level, avg, output_size, card, N[0], N[1], N[2], N[3]])
+        results.append(["SD_Query", level, avg, output_size, card, N[0], N[1], N[2], N[3], stats, args.notes])
         DropLineageTables(con)
         con.execute("DROP TABLE lineage");
     else:
-        results.append(["SD_Capture", level, avg, -1, card, N[0], N[1], N[2], N[3]])
+        results.append(["SD_Capture", level, avg, -1, card, N[0], N[1], N[2], N[3], stats, args.notes])
 ################### Check data exists if not, then generate data
 folder = "benchmark_data/"
 cardinality = [1000]
@@ -128,7 +134,7 @@ for N in N_list:
             )""".format(out_index)
             avg, output_size = Run(level1_lineage, args, con, "lineage")
             output_size = con.execute("select count(*) as c from lineage").fetchdf().loc[0, 'c']
-            results.append(["Logical_RID", "level1", avg, output_size, card, N[0], N[1], N[2], N[3]])
+            results.append(["Logical_RID", "level1", avg, output_size, card, N[0], N[1], N[2], N[3], args.notes])
             con.execute("DROP TABLE lineage");
             ################## level 2 #####################
             level2_join = """
@@ -144,7 +150,7 @@ for N in N_list:
             """
             avg, output_size = Run(level2_join, args, con, "lineage")
             output_size = con.execute("select count(*) as c from lineage").fetchdf().loc[0, 'c']
-            results.append(["Logical_RID", "level2", avg, output_size, card, N[0], N[1], N[2], N[3]])
+            results.append(["Logical_RID", "level2", avg, output_size, card, N[0], N[1], N[2], N[3], args.notes])
             con.execute("DROP TABLE lineage");
             ################## level 3 #####################
             avg_level2, output_size = Run("create table level2 as ({})".format(level2), args, con, "level2")
@@ -163,7 +169,7 @@ for N in N_list:
             output_size = con.execute("select count(*) as c from lineage").fetchdf().loc[0, 'c']
             total = avg + avg_level2
             print("level4 total: ", total)
-            results.append(["Logical_RID", "level3", total, output_size, card, N[0], N[1], N[2], N[3]])
+            results.append(["Logical_RID", "level3", total, output_size, card, N[0], N[1], N[2], N[3], args.notes])
             con.execute("DROP TABLE lineage");
             con.execute("DROP TABLE level2");
             ################## level 4 #####################
@@ -187,23 +193,23 @@ for N in N_list:
             output_size = con.execute("select count(*) as c from lineage").fetchdf().loc[0, 'c']
             total = avg + avg_level1 + avg_level2 + avg_level3
             print("level4 total: ", total)
-            results.append(["Logical_RID", "level4", total, output_size, card, N[0], N[1], N[2], N[3]])
+            results.append(["Logical_RID", "level4", total, output_size, card, N[0], N[1], N[2], N[3], args.notes])
             con.execute("DROP TABLE lineage");
             con.execute("DROP TABLE level3");
             con.execute("DROP TABLE level2");
             con.execute("DROP TABLE level1");
         else:
-            baseline_avg, output_size = Run(level1, args, con)
-            results.append(["Baseline", "level1", baseline_avg, output_size, card, N[0], N[1], N[2], N[3]])
+            baseline_avg, df = Run(level1, args, con)
+            results.append(["Baseline", "level1", baseline_avg, len(df), card, N[0], N[1], N[2], N[3], args.notes])
 
-            baseline_avg, output_size = Run(level2, args, con)
-            results.append(["Baseline", "level2", baseline_avg, output_size, card, N[0], N[1], N[2], N[3]])
+            baseline_avg, df = Run(level2, args, con)
+            results.append(["Baseline", "level2", baseline_avg, len(df), card, N[0], N[1], N[2], N[3], args.notes])
 
-            baseline_avg, output_size = Run(level3, args, con)
-            results.append(["Baseline", "level3", baseline_avg, output_size, card, N[0], N[1], N[2], N[3]])
+            baseline_avg, df = Run(level3, args, con)
+            results.append(["Baseline", "level3", baseline_avg, len(df), card, N[0], N[1], N[2], N[3], args.notes])
 
-            baseline_avg, output_size = Run(level4, args, con)
-            results.append(["Baseline", "level4", baseline_avg, output_size, card, N[0], N[1], N[2], N[3]])
+            baseline_avg, df = Run(level4, args, con)
+            results.append(["Baseline", "level4", baseline_avg, len(df), card, N[0], N[1], N[2], N[3], args.notes])
 
         con.execute("drop table t1")
 
@@ -212,8 +218,11 @@ for N in N_list:
 if args.save_csv:
     filename="nested_agg_notes_"+args.notes+"_lineage_type_"+lineage_type+".csv"
     print(filename)
-    header = ["lineage_type", "level", "runtime", "output_size", "cardinality", "n1", "n2", "n3", "n4"]
-    with open(filename, 'w') as csvfile:
+    header = ["lineage_type", "level", "runtime", "output_size", "cardinality", "n1", "n2", "n3", "n4", "stats", "notes"]
+    control = 'w'
+    if args.csv_append:
+        control = 'a'
+    with open(filename, control) as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(header)
         csvwriter.writerows(results)

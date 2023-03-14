@@ -5,6 +5,19 @@ import pandas as pd
 import numpy as np
 import os.path
 
+def getStats(con, q):
+    q_list = "select * from queries_list"
+    query_info = con.execute(q_list).fetchdf()
+    #q_list = "select * from queries_list where query='{}'".format(q)
+    query_info = con.execute(q_list).fetchdf()
+    n = len(query_info)-1
+    print("Query info: ", query_info.loc[n])
+    query_id = query_info.loc[n, 'query_id']
+    lineage_size = query_info.loc[n, 'lineage_size']
+    nchunks = query_info.loc[n, 'nchunks']
+    postprocess_time = query_info.loc[n, 'postprocess_time']
+
+    return lineage_size, nchunks, postprocess_time
 def execute(Q, con, args):
     Q = " ".join(Q.split())
     if args.profile:
@@ -129,4 +142,18 @@ def MicroDataSelective(folder, selectivity, cardinality):
                 vals = np.random.uniform(0, max_val, card)
                 idx = list(range(0, card))
                 df = pd.DataFrame({'idx':idx, 'z': data, 'v': vals})
+                df.to_csv(filename, index=False)
+
+def MicroDataMcopies(folder, copies, cardinality, max_val):
+    for m in copies:
+        for card in cardinality:
+            filename = folder+"m"+str(m)+"copies_card"+str(card)+".csv"
+            if not os.path.exists(filename):
+                data = []
+                for c in range(card):
+                    for i in range(m):
+                        data.append(c)
+                vals = np.random.uniform(0, max_val, card*m)
+                idx = list(range(0, card*m))
+                df = pd.DataFrame({'idx':idx, 'm': data, 'v': vals})
                 df.to_csv(filename, index=False)

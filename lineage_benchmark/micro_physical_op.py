@@ -4,7 +4,7 @@ import argparse
 import csv
 import numpy as np
 
-from utils import MicroDataZipfan, MicroDataSelective, DropLineageTables, Run
+from utils import getStats, MicroDataZipfan, MicroDataSelective, DropLineageTables, MicroDataMcopies,  Run
 
 def PersistResults(results, filename, append):
     print("Writing results to ", filename, " Append: ", append)
@@ -22,16 +22,6 @@ def PersistResults(results, filename, append):
 #   of 'card' cardinality. Goal: see the effect of
 #   large table size on lineage capture overhead
 ########################################################
-def getStats(con, q):
-    q_list = "select * from queries_list where query='{}'".format(q)
-    query_info = con.execute(q_list).fetchdf()
-    print("Query info: ", query_info)
-    query_id = query_info.loc[0, 'query_id']
-    lineage_size = query_info.loc[0, 'lineage_size']
-    nchunks = query_info.loc[0, 'nchunks']
-    postprocess_time = query_info.loc[0, 'postprocess_time']
-
-    return lineage_size, nchunks, postprocess_time
 
 def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
     print("------------ Test Scan zipfan 1", lineage_type)
@@ -232,6 +222,7 @@ def crossProduct(con, args, folder, lineage_type, cardinality, results):
     print("------------ Test Cross Product ", lineage_type)
     for card in cardinality:
         # create tables & insert values
+        # use different tables
         con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
         con.execute("create table t2 as SELECT i FROM range(0,"+str(card[1])+") tbl(i)")
         # Run query
@@ -265,13 +256,21 @@ def join_lessthan(con, args, folder, lineage_type, cardinality, results, jointyp
 
     for card in cardinality:
         # create tables & insert values
-        con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
-        con.execute("create table t2 as SELECT i FROM range(0,"+str(card[1])+") tbl(i)")
+        v1 = np.random.uniform(0, card[0], card[0])
+        v2 = np.random.uniform(2*card[0], 3*card[0], card[1])
+        idx1 = list(range(0, card[0]))
+        idx2 = list(range(0, card[1]))
+        t1 = pd.DataFrame({'v':v1, 'id':idx1})
+        t2 = pd.DataFrame({'v':v2, 'id':idx2})
+        con.register('t1_view', t1)
+        con.execute("create table t1 as select * from t1_view")
+        con.register('t2_view', t2)
+        con.execute("create table t2 as select * from t2_view")
         # Run query
-        q = "select count(*) as c from (select * from t1, t2 where t1.i < t2.i) as t"
+        q = "select count(*) as c from (select t1.v from t1, t2 where t1.v < t2.v) as t"
         table_name = None
         if args.perm:
-            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, * FROM t1, t2 WHERE t1.i<t2.i"
+            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.v FROM t1, t2 WHERE t1.v<t2.v"
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
         avg, df = Run(q, args, con, table_name)
@@ -297,13 +296,21 @@ def NLJ(con, args, folder, lineage_type, cardinality, results):
     print("------------ Test Nested Loop Join")
     for card in cardinality:
         # create tables & insert values
-        con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
-        con.execute("create table t2 as SELECT i FROM range(0,"+str(card[1])+") tbl(i)")
+        v1 = np.random.uniform(0, card[0], card[0])
+        v2 = np.random.uniform(2*card[0], 3*card[0], card[1])
+        idx1 = list(range(0, card[0]))
+        idx2 = list(range(0, card[1]))
+        t1 = pd.DataFrame({'v':v1, 'id':idx1})
+        t2 = pd.DataFrame({'v':v2, 'id':idx2})
+        con.register('t1_view', t1)
+        con.execute("create table t1 as select * from t1_view")
+        con.register('t2_view', t2)
+        con.execute("create table t2 as select * from t2_view")
         # Run query
-        q = "select count(*) as c from (select * from t1, t2 where t1.i <> t2.i) as t"
+        q = "select count(*) as c from (select t1.v from t1, t2 where t1.v <> t2.v) as t"
         table_name = None
         if args.perm:
-            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, * FROM t1, t2 WHERE t1.i<>t2.i"
+            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.v FROM t1, t2 WHERE t1.v<>t2.v"
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
         avg, df = Run(q, args, con, table_name)
@@ -328,13 +335,21 @@ def BNLJ(con, args, folder, lineage_type, cardinality, results):
     print("------------ Test Block Nested Loop Join")
     for card in cardinality:
         # create tables & insert values
-        con.execute("create table t1 as SELECT i FROM range(0,"+str(card[0])+") tbl(i)")
-        con.execute("create table t2 as SELECT i FROM range(0,"+str(card[1])+") tbl(i)")
+        v1 = np.random.uniform(0, card[0], card[0])
+        v2 = np.random.uniform(2*card[0], 3*card[0], card[1])
+        idx1 = list(range(0, card[0]))
+        idx2 = list(range(0, card[1]))
+        t1 = pd.DataFrame({'v':v1, 'id':idx1})
+        t2 = pd.DataFrame({'v':v2, 'id':idx2})
+        con.register('t1_view', t1)
+        con.execute("create table t1 as select * from t1_view")
+        con.register('t2_view', t2)
+        con.execute("create table t2 as select * from t2_view")
         # Run query
-        q = "select count(*) as c from (select * from t1, t2 where t1.i=t2.i or t1.i<t2.i) as t"
+        q = "select count(*) as c from (select t1.v from t1, t2 where t1.v=t2.v or t1.v<t2.v) as t"
         table_name = None
         if args.perm:
-            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, * FROM t1, t2 WHERE t1.i=t2.i or t1.i<t2.i"
+            q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, t1.v FROM t1, t2 WHERE t1.v=t2.v or t1.v<t2.v"
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
         avg, df = Run(q, args, con, table_name)
@@ -430,8 +445,61 @@ def HashJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
             con.execute("drop table zipf1")
     con.execute("drop table zipf2")
     return results
+
 # Index Join (predicate: join on index attribute)
-def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results):
+# non-index table gids(idx) pk
+# indexed table index() fk --> for each value in idx, create x copies 
+# -> vary number of copies so that what dominates is index join operator and not scan operator
+def IndexJoin12M(con, args, folder, lineage_type, copies, cardinality, results, index_scan):
+    print("------------ Test Index Join PF:FK")
+    con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
+    con.execute("PRAGMA force_index_join")
+    for card in cardinality:
+        idx = list(range(0, card))
+        gid = pd.DataFrame({'id':idx, 'v':idx})
+        con.register('gids_view', gid)
+        con.execute("create table gids as select * from gids_view")
+        for m in copies:
+            filename = "m"+str(m)+"copies_card"+str(card)+".csv"
+            print(filename)
+            zipf1 = pd.read_csv(folder+filename)
+            con.register('indexed_view', zipf1)
+            con.execute("create table indexed as select * from indexed_view")
+            con.execute("create index i_index ON indexed using art(m);");
+            if (index_scan):
+                q = "select count(*) as c from (SELECT gids.v as v1 FROM gids, indexed WHERE gids.id=indexed.m) as t"
+            else:
+                q = "select count(t.v2), count(t.v1) as c from (SELECT gids.v as  v2, indexed.v as v1 FROM gids, indexed WHERE gids.id=indexed.m) as t"
+            table_name = None
+            if args.perm:
+                if (index_scan):
+                    q = "SELECT indexed.rowid as indexed_rowid, gids.rowid as gids_rowid, gids.v as v1 FROM indexed, gids WHERE indexed.m=gids.id"
+                else:
+                    q = "SELECT indexed.rowid as indexed_rowid, gids.rowid as gids_rowid, gids.v as v2, indexed.v as v1 FROM indexed, gids WHERE indexed.m=gids.id"
+                q = "create table indexed_perm_lineage as "+ q
+                table_name='indexed_perm_lineage'
+            avg, df = Run(q, args, con, table_name)
+            if args.perm:
+                df = con.execute("select count(*) as c from indexed_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table indexed_perm_lineage")
+            else:
+                output_size = df.loc[0,'c']
+            stats = ""
+            if args.enable_lineage and args.stats:
+                lineage_size, nchunks, postprocess_time= getStats(con, q)
+                stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
+            results.append(["index_join_12M"+str(index_scan), avg, card, m, output_size, stats, lineage_type, args.notes])
+            if args.enable_lineage:
+                DropLineageTables(con)
+            con.execute("DROP INDEX i_index")
+            con.execute("drop table indexed")
+        con.execute("drop table gids")
+
+# Index Join (predicate: join on index attribute)
+# non-index table gids(idx) pk
+# indexed table index() fk --> zipfan. no point
+def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results, index_scan):
     print("------------ Test Index Join PF:FK")
     con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
     con.execute("PRAGMA force_index_join")
@@ -447,10 +515,13 @@ def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
             con.register('zipf1_view', zipf1)
             con.execute("create table zipf1 as select * from zipf1_view")
             con.execute("create index i_index ON zipf1 using art(z);");
-            q = "select count(*) as c from (SELECT gids.* FROM gids, zipf1 WHERE gids.id=zipf1.z) as t"
+            if (index_scan):
+                q = "select count(*) as c from (SELECT gids.* FROM gids, zipf1 WHERE gids.id=zipf1.z) as t"
+            else:
+                q = "select count(t.id), count(t.idx) as c from (SELECT gids.id, zipf1.idx FROM gids, zipf1 WHERE gids.id=zipf1.z) as t"
             table_name = None
             if args.perm:
-                q = "SELECT zipf1.rowid as zipf1_rowid, gids.rowid as gids_rowid, gids.* FROM zipf1, gids WHERE zipf1.z=gids.id"
+                q = "SELECT zipf1.rowid as zipf1_rowid, gids.rowid as gids_rowid, gids.id, zipf1.idx FROM zipf1, gids WHERE zipf1.z=gids.id"
                 q = "create table zipf1_perm_lineage as "+ q
                 table_name='zipf1_perm_lineage'
             avg, df = Run(q, args, con, table_name)
@@ -464,14 +535,14 @@ def IndexJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["index_join_pkfk", avg, card, g, output_size, stats, lineage_type, args.notes])
+            results.append(["index_join_pkfk"+str(index_scan), avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("DROP INDEX i_index")
             con.execute("drop table zipf1")
         con.execute("drop table gids")
 
-def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
+def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results, index_scan):
     print("------------ Test Index Join Many to Many Join zipfan 1")
     con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
     con.execute("PRAGMA force_index_join")
@@ -488,10 +559,13 @@ def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
             con.register('zipf1_view', zipf1)
             con.execute("create table zipf1 as select * from zipf1_view")
             
-            q = "select count(*) as c from (SELECT zipf1.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
+            if (index_scan):
+                q = "select count(*) as c from (SELECT zipf1.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
+            else:
+                q = "select count(t.idx), count(t.v) as c from (SELECT zipf1.idx, zipf2.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
             table_name = None
             if args.perm:
-                q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf1.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
+                q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf1.idx, zipf2.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
                 q = "create table zipf1_perm_lineage as "+ q
                 table_name='zipf1_perm_lineage'
             avg, df = Run(q, args, con, table_name)
@@ -505,7 +579,7 @@ def IndexJoinMtM(con, args, folder, lineage_type, groups, cardinality, results):
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
-            results.append(["index_join_mtm", avg, card, g, output_size, stats, lineage_type, args.notes])
+            results.append(["index_join_mtm"+str(index_scan), avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
             con.execute("drop table zipf1")
