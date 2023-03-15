@@ -64,11 +64,12 @@ folder = args.base + "benchmark_data/"
 groups = [10, 100, 1000]
 cardinality = [1000, 10000, 100000, 1000000, 5000000, 10000000]
 max_val = 100
-a = 1
-MicroDataZipfan(folder, groups, cardinality, max_val, a)
+a_list = [1, 0]
+MicroDataZipfan(folder, groups, cardinality, max_val, a_list)
 selectivity = [0.0, 0.02, 0.2, 0.5, 0.8, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 MicroDataSelective(folder, selectivity, cardinality)
+
 ################### Order By ###########################
 ##  order on 'z' with 'g' unique values and table size
 #   of 'card' cardinality. Goal: see the effect of
@@ -77,8 +78,8 @@ MicroDataSelective(folder, selectivity, cardinality)
 ########################################################
 groups = [100]
 cardinality = [1000000, 5000000, 10000000]
-ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
-OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
+#ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
+#OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
 
 ################### Filter ###########################
 ##  filter on 'z' with 'g' unique values and table size
@@ -89,9 +90,9 @@ OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
 selectivity = [0.0, 0.2, 0.5, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 pushdown = "filter"
-FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 pushdown = "clear"
-FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 
 ################### Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
@@ -100,49 +101,67 @@ FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, 
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 agg_type = "perfect"
-int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 agg_type = "reg"
-int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
-hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
+#hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
 
+#copies = [10, 100, 1000]
+#cardinality = [1000000]
+#MicroDataMcopies(folder, copies, cardinality, max_val)
+#agg_type = "perfect"
+#int_hashAggCopies(con, args, folder, lineage_type, copies, cardinality, results, agg_type)
 ################### Joins  ############
 ########################################################
 print("------------ Test Joins-----------")
 
 cardinality = [(1000, 1000), (1000, 10000), (1000, 100000)]
-jointype = "merge"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, jointype)
-jointype = "nl"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, jointype)
+pred = "where t1.v < t2.v"
+op = "merge"
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred)
 
-NLJ(con, args, folder, lineage_type, cardinality, results)
-BNLJ(con, args, folder, lineage_type, cardinality, results)
+op = "nl"
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred)
 
-crossProduct(con, args, folder, lineage_type, cardinality, results)
+pred = "where t1.v = t2.v or t1.v < t2.v"
+op = "bnl"
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
 
-############## Hash Join PKFK ##########
+pred = ""
+op = "cross"
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
+
+# Vary selectivity -- how?
+
+############## PKFK ##########
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
-HashJoinFKPK(con, args, folder, lineage_type, groups, cardinality, results)
+a_list = [1, 0]
+op = "hash_join"
+#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
 
-############## Hash Join many-to-many ##########
+op = "index_join"
+index_scan = False
+#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+index_scan = True
+#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+
+############## Join many-to-many ##########
 # zipf1.z is within [1,10] or [1,100]
 # zipf2.z is [1,100]
 # left size=1000, right size: 1000 .. 100000
 groups = [10, 100]
 cardinality = [1000, 10000, 100000, 1000000]
-HashJoinMtM(con, args, folder, lineage_type, groups, cardinality, results)
-
-############ Index Join (1:M)
-copies = [1, 10, 50, 100, 1000, 10000]
-cardinality = [1000, 10000]
-MicroDataMcopies(folder, copies, cardinality, max_val)
+op = "hash_join"
+#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, False)
+op = "index_join"
 index_scan = False
-IndexJoin12M(con, args, folder, lineage_type, copies, cardinality, results, index_scan)
+#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
 index_scan = True
-IndexJoin12M(con, args, folder, lineage_type, copies, cardinality, results, index_scan)
+#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+
 
 ########### write results to csv
 if args.save_csv:

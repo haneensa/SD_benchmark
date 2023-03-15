@@ -119,18 +119,19 @@ def SelectivityGenerator(selectivity, card):
     print("execpted selectivity : ", sel, " actual: ", len(test_sel)/float(card))
     return result
 
-def MicroDataZipfan(folder, groups, cardinality, max_val, a):
-    for g in groups:
-        for card in cardinality:
-            filename = folder+"zipfan_g"+str(g)+"_card"+str(card)+"_a"+str(a)+".csv"
-            if not os.path.exists(filename):
-                print("generate file: ", filename)
-                z = ZipfanGenerator(g, a, card)
-                zipfan = z.getAll()
-                vals = np.random.uniform(0, max_val, card)
-                idx = list(range(0, card))
-                df = pd.DataFrame({'idx':idx, 'z': zipfan, 'v': vals})
-                df.to_csv(filename, index=False)
+def MicroDataZipfan(folder, groups, cardinality, max_val, a_list):
+    for a in a_list:
+        for g in groups:
+            for card in cardinality:
+                filename = folder+"zipfan_g"+str(g)+"_card"+str(card)+"_a"+str(a)+".csv"
+                if not os.path.exists(filename):
+                    print("generate file: ", filename)
+                    z = ZipfanGenerator(g, a, card)
+                    zipfan = z.getAll()
+                    vals = np.random.uniform(0, max_val, card)
+                    idx = list(range(0, card))
+                    df = pd.DataFrame({'idx':idx, 'z': zipfan, 'v': vals})
+                    df.to_csv(filename, index=False)
 
 def MicroDataSelective(folder, selectivity, cardinality):
     ## filter data
@@ -150,10 +151,10 @@ def MicroDataMcopies(folder, copies, cardinality, max_val):
             filename = folder+"m"+str(m)+"copies_card"+str(card)+".csv"
             if not os.path.exists(filename):
                 data = []
-                for c in range(card):
-                    for i in range(m):
-                        data.append(c)
+                sequence = range(0, card)
+                for i in range(m):
+                    data.extend(sequence)
                 vals = np.random.uniform(0, max_val, card*m)
                 idx = list(range(0, card*m))
-                df = pd.DataFrame({'idx':idx, 'm': data, 'v': vals})
+                df = pd.DataFrame({'idx':idx, 'z': data, 'v': vals})
                 df.to_csv(filename, index=False)
