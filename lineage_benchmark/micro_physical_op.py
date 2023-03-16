@@ -324,39 +324,40 @@ def MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index
         con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
         con.execute("PRAGMA force_index_join")
 
-    filename = "zipfan_g100_card1000_a1.csv"
-    zipf2 = pd.read_csv(folder+filename)
-    con.register('zipf2_view', zipf2)
-    con.execute("create table zipf2 as select * from zipf2_view")
-    if (op == "index_join"):
-        con.execute("create index i_index ON zipf2 using art(z);");
     for g in groups:
+        fname =  "zipfan_g{}_card1000_a1.csv"
+        filename = fname.format(g)
+        zipf1 = pd.read_csv(folder+filename)
+        con.register('zipf1_view', zipf1)
+        con.execute("create table zipf1 as select * from zipf1_view")
+        if (op == "index_join"):
+            con.execute("create index i_index ON zipf1 using art(z);");
+
         for card in cardinality:
-            fname =  "zipfan_g{}_card{}_a1.csv"
-            filename = fname.format(g, card)
-            print(filename, "g", g, "card", card, "a", 1, op, index_scan)
-            zipf1 = pd.read_csv(folder+filename)
-            con.register('zipf1_view', zipf1)
-            con.execute("create table zipf1 as select * from zipf1_view")
+            print("g", g, "card", card, "a", 1, op, index_scan)
+            filename = "zipfan_g100_card{}_a1.csv".format(card)
+            zipf2 = pd.read_csv(folder+filename)
+            con.register('zipf2_view', zipf2)
+            con.execute("create table zipf2 as select * from zipf2_view")
             q = "select count(*) as c from (SELECT * FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z)"
             if (index_scan):
-                q = "select count(*) as c from (SELECT zipf1.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
+                q = "select count(*) as c from (SELECT zipf2.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
             else:
-                q = "select count(t.idx), count(t.v) as c from (SELECT zipf1.idx, zipf2.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
+                q = "select count(t.idx), count(t.v) as c from (SELECT zipf2.idx, zipf1.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z) as t"
             table_name = None
             if args.perm:
                 q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, * FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
                 if (index_scan):
-                    q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf1.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
+                    q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf2.* FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
                 else:
-                    q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf1.idx, zipf2.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
-                q = "create table zipf1_perm_lineage as "+ q
-                table_name='zipf1_perm_lineage'
+                    q = "SELECT zipf1.rowid as zipf1_rowid, zipf2.rowid as zipf2_rowid, zipf2.idx, zipf1.v FROM zipf1, zipf2 WHERE zipf1.z=zipf2.z"
+                q = "create table perm_lineage as "+ q
+                table_name='perm_lineage'
             avg, df = Run(q, args, con, table_name)
             if args.perm:
-                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+                df = con.execute("select count(*) as c from perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
-                con.execute("drop table zipf1_perm_lineage")
+                con.execute("drop table perm_lineage")
             else:
                 output_size = df.loc[0,'c']
             stats = ""
@@ -366,10 +367,10 @@ def MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index
             results.append(["{}_mtm".format(op), avg, card, g, output_size, stats, lineage_type, args.notes])
             if args.enable_lineage:
                 DropLineageTables(con)
-            con.execute("drop table zipf1")
-    if (index_scan):
-        con.execute("DROP INDEX i_index")
-    con.execute("drop table zipf2")
+            con.execute("drop table zipf2")
+        if (index_scan):
+            con.execute("DROP INDEX i_index")
+        con.execute("drop table zipf1")
     return results
 
 def int_hashAggCopies(con, args, folder, lineage_type, copies, cardinality, results, agg_type):

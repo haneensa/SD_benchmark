@@ -51,7 +51,7 @@ for sf in sf_list:
         con.execute("PRAGMA threads="+str(th_id))
         con.execute("PRAGMA force_parallelism")
     
-        for i in range(1, 23):
+        for i in range(9, 10):
             qfile = prefix+str(i).zfill(2)+".sql"
             text_file = open(qfile, "r")
             query = text_file.read()

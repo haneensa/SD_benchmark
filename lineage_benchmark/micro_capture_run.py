@@ -78,8 +78,8 @@ MicroDataSelective(folder, selectivity, cardinality)
 ########################################################
 groups = [100]
 cardinality = [1000000, 5000000, 10000000]
-#ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
-#OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
+ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
+OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
 
 ################### Filter ###########################
 ##  filter on 'z' with 'g' unique values and table size
@@ -90,9 +90,9 @@ cardinality = [1000000, 5000000, 10000000]
 selectivity = [0.0, 0.2, 0.5, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 pushdown = "filter"
-#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 pushdown = "clear"
-#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 
 ################### Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
@@ -101,12 +101,12 @@ pushdown = "clear"
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 agg_type = "perfect"
-#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 agg_type = "reg"
-#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
-#hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
+hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
 
 #copies = [10, 100, 1000]
 #cardinality = [1000000]
@@ -140,27 +140,35 @@ groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 a_list = [1, 0]
 op = "hash_join"
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
 
 op = "index_join"
 index_scan = False
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+repeat = args.repeat
+args.repeat = 1
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+args.repeat = repeat
+
 index_scan = True
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
 
 ############## Join many-to-many ##########
 # zipf1.z is within [1,10] or [1,100]
 # zipf2.z is [1,100]
 # left size=1000, right size: 1000 .. 100000
 groups = [10, 100]
-cardinality = [1000, 10000, 100000, 1000000]
+cardinality = [10000, 100000, 1000000]
 op = "hash_join"
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, False)
+MtM(con, args, folder, lineage_type, groups, cardinality, results, op, False)
 op = "index_join"
 index_scan = False
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+repeat = args.repeat
+args.repeat = 1
+MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+args.repeat = repeat
+
 index_scan = True
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
 
 
 ########### write results to csv
