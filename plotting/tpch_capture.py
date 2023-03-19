@@ -28,9 +28,9 @@ def relative_overhead(base, extra): # in %
 def overhead(base, extra): # in ms
     return max(((float(extra)-float(base)))*1000, 0)
 
-df = pd.read_csv("eval_results/tpch_benchmark_capture_m1_SD.csv")
-df_stats = df[df["notes"]=="m1_stats"]
-df = df[df["notes"]!="m1_stats"]
+df = pd.read_csv("eval_results/tpch_benchmark_capture_m18.csv")
+df_stats = df[df["notes"]=="m18_stats"]
+df = df[df["notes"]!="m18_stats"]
 df = df[df["sf"]==1]
 pd.set_option("display.max_rows", None)
 #pd.set_option("display.max_columns", None)
@@ -47,8 +47,8 @@ df_withB["outputFan"] = df_withB.apply(lambda x: float(x['output_x'])/ float(x['
 df_withB= df_withB[df_withB["lineage_type"]!="Baseline"]
 #print(df_withB)
 
-df_full = df_withB[df_withB["notes"] == "m1_full"]
-df_copy = df_withB[df_withB["notes"] == "m1_copy"]
+df_full = df_withB[df_withB["notes"] == "m18"]
+df_copy = df_withB[df_withB["notes"] == "m18_copy"]
 df_logical = df_withB[df_withB["lineage_type"] == "Logical-RID"]
 df_logical = df_logical[["query", "sf", "n_threads", "rel_overhead", "overhead", "outputFan", "runtime_x"]]
 df_full = df_full[["query", "sf", "n_threads", "rel_overhead", "notes", "overhead",  "runtime_x", "runtime_y"]]
