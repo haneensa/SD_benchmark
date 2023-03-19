@@ -1,5 +1,11 @@
 import pandas as pd
 from pygg import *
+
+class_list = [1,3,5,6,7,8,9,10,12,13,14,16,19, 2,4,11,15,17,18,20,21,22]
+queries_order = [""+str(x)+"" for x in class_list]
+queries_order = ','.join(queries_order)
+
+
 # Source Sans Pro Light
 legend = theme_bw() + theme(**{
   "legend.background": element_blank(), #element_rect(fill=esc("#f7f7f7")),
@@ -47,13 +53,16 @@ df_withB["outputFan"] = df_withB.apply(lambda x: float(x['output_x'])/ float(x['
 df_withB= df_withB[df_withB["lineage_type"]!="Baseline"]
 #print(df_withB)
 
-df_full = df_withB[df_withB["notes"] == "m18"]
-df_copy = df_withB[df_withB["notes"] == "m18_copy"]
+df_sd = df_withB[df_withB["lineage_type"] == "SD_Capture"]
+df_full = df_sd[df_sd["notes"] == "m18"]
+df_copy = df_sd[df_sd["notes"] == "m18_copy"]
 df_logical = df_withB[df_withB["lineage_type"] == "Logical-RID"]
 df_logical = df_logical[["query", "sf", "n_threads", "rel_overhead", "overhead", "outputFan", "runtime_x"]]
 df_full = df_full[["query", "sf", "n_threads", "rel_overhead", "notes", "overhead",  "runtime_x", "runtime_y"]]
-#df_copy = df_copy[["query", "sf", "n_threads", "rel_overhead", "notes", "overhead", "runtime_x"]]
-#df_fc = pd.merge(df_copy, df_full, how='inner', on = ['query', "sf", 'n_threads'])
+df_copy = df_copy[["query", "sf", "n_threads", "rel_overhead", "notes", "overhead", "runtime_x"]]
+df_fc = pd.merge(df_copy, df_full, how='inner', on = ['query', "sf", 'n_threads'])
+print("Copy vs Full")
+print(df_fc)
 df_fc = pd.merge(df_full, df_logical, how='inner', on = ['query', "sf", 'n_threads'])
 
 def normalize(full, nchunks):
@@ -63,18 +72,21 @@ def normalize(full, nchunks):
     else:
         return full/nchunks
 
+print("Logical vs Full")
 df_stats = df_stats[["stats", "query", "sf", 'n_threads']]
 
 df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['query', 'sf', 'n_threads'])
-df_fcstats["full_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhead_y'],float(x['stats'].split(',')[1])), axis=1)
+df_fcstats["full_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhead_x'],float(x['stats'].split(',')[1])), axis=1)
 df_fcstats["copy_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhead_x'],float(x['stats'].split(',')[1])), axis=1)
 df_fcstats["nchunks"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[1]), axis=1)
 df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/(1024*1024), axis=1)
+df_fcstats = df_fcstats.drop(columns=["stats"])
 print(df_fcstats)
 print(df_fcstats.groupby(["query", "sf", 'n_threads']).mean())
+print(df_fcstats.groupby(["sf", 'n_threads']).mean())
 
 for index, row in df_withB.iterrows():
-    if (row["notes"] == "m1_copy"):
+    if (row["notes"] == "m18_copy"):
         continue
     name = row['lineage_type']# + row["notes"]
     data.append(dict(system=name, notes=row["notes"], overhead=row["overhead"], rel_overhead=row["rel_overhead"], qid=row['query']))
@@ -84,11 +96,13 @@ p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6
 p += axis_labels('Query', "Runtime Overhead (ms)", "discrete", "log10")
 #p += ylim(lim=[0,300])
 p += legend_bottom
-ggsave("tpch_overhead.png", p,  width=6, height=4)
+postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
+ggsave("tpch_overhead.png", p,  width=6, height=3)
 
 p = ggplot(data, aes(x='qid', y='rel_overhead', color='system', fill='system', group='system', shape='system'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
 p += axis_labels('Query', "Runtime Relative Overhead % (log)", "discrete", "log10")
+postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
 #p += ylim(lim=[0,300])
 p += legend_bottom
-ggsave("tpch_relative_overhead.png", p,  width=6, height=4)
+ggsave("tpch_relative_overhead.png", p, postfix=postfix, width=6, height=3)
