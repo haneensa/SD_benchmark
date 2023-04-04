@@ -1,7 +1,7 @@
 import pandas as pd
 from pygg import *
 
-class_list = [1,3,5,6,7,8,9,10,12,13,14,16,19, 2,4,11,15,17,18,20,21,22]
+class_list = [1,3,5,6,7,8,9,10,12,13,14,19, 2,4,11,15,16, 17,18,20,21,22]
 queries_order = [""+str(x)+"" for x in class_list]
 queries_order = ','.join(queries_order)
 
@@ -81,9 +81,13 @@ df_fcstats["copy_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhe
 df_fcstats["nchunks"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[1]), axis=1)
 df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/(1024*1024), axis=1)
 df_fcstats = df_fcstats.drop(columns=["stats"])
-print(df_fcstats)
-print(df_fcstats.groupby(["query", "sf", 'n_threads']).mean())
-print(df_fcstats.groupby(["sf", 'n_threads']).mean())
+print(df_fcstats) 
+
+type1 = [1, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14, 19]
+type2 = [11, 15, 16, 18]
+type3 = [2, 4, 17, 18, 20, 21, 22]
+print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["query", "sf", 'n_threads']).mean())
+print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["sf", 'n_threads']).mean())
 
 for index, row in df_withB.iterrows():
     if (row["notes"] == "m18_copy"):
@@ -97,11 +101,11 @@ p += axis_labels('Query', "Runtime Overhead (ms)", "discrete", "log10")
 #p += ylim(lim=[0,300])
 p += legend_bottom
 postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-ggsave("tpch_overhead.png", p,  width=6, height=3)
+ggsave("tpch_overhead.png", p,  width=6, height=3.5)
 
 p = ggplot(data, aes(x='qid', y='rel_overhead', color='system', fill='system', group='system', shape='system'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Runtime Relative Overhead % (log)", "discrete", "log10")
+p += axis_labels('Query', "Relative Overhead % (log)", "discrete", "log10")
 postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
 #p += ylim(lim=[0,300])
 p += legend_bottom
