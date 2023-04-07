@@ -33,7 +33,7 @@ CREATE TABLE lineage as (
                       AND l_shipmode IN ('AIR', 'AIR REG')
                       AND l_shipinstruct = 'DELIVER IN PERSON')
           )
-    ) as groups, (
+    ) as Qbase, (
       SELECT
           lineitem.rowid as lineitem_rowid,
           part.rowid as part_rowid
@@ -64,5 +64,5 @@ CREATE TABLE lineage as (
               AND p_size BETWEEN 1 AND 15
               AND l_shipmode IN ('AIR', 'AIR REG')
               AND l_shipinstruct = 'DELIVER IN PERSON')
-  ) as joins
+  ) as Qplus
 )

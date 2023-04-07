@@ -1,5 +1,5 @@
 create table lineage as (
-  select groups.*, part_rowid,  supplier_rowid, lineitem_rowid,  partsupp_rowid,
+  select Qbase.*, part_rowid,  supplier_rowid, lineitem_rowid,  partsupp_rowid,
          orders_rowid, nation_rowid
   from (
     SELECT part.rowid as part_rowid, supplier.rowid as supplier_rowid,
@@ -11,7 +11,7 @@ create table lineage as (
         AND ps_partkey = l_partkey AND p_partkey = l_partkey
         AND o_orderkey = l_orderkey AND s_nationkey = n_nationkey
         AND p_name LIKE '%green%'
-  ) as joins join (
+  ) as Qplus join (
     SELECT nation, o_year, sum(amount) AS sum_profit
     FROM (
       SELECT n_name AS nation, extract(year FROM o_orderdate) AS o_year,
@@ -24,5 +24,5 @@ create table lineage as (
     )
     GROUP BY nation, o_year
     ORDER BY nation, o_year DESC
-  ) as groups using (nation, o_year)
+  ) as Qbase using (nation, o_year)
 )

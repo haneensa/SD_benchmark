@@ -1,5 +1,5 @@
 create table lineage as (
-  select groups.*, part_rowid, supplier_rowid, lineitem_rowid, orders_rowid,
+  select Qbase.*, part_rowid, supplier_rowid, lineitem_rowid, orders_rowid,
          customer_rowid, n1_rowid, n2_rowid, region_rowid
   from (
     SELECT part.rowid as part_rowid, supplier.rowid as supplier_rowid,
@@ -15,7 +15,7 @@ create table lineage as (
         AND o_orderdate BETWEEN CAST('1995-01-01' AS date)
         AND CAST('1996-12-31' AS date)
         AND p_type = 'ECONOMY ANODIZED STEEL'
-  ) as joins join (
+  ) as Qplus join (
     SELECT o_year, sum(
               CASE WHEN nation = 'BRAZIL' THEN
                   volume
@@ -35,5 +35,5 @@ create table lineage as (
     )
     GROUP BY o_year
     ORDER BY o_year
-  ) as groups using (o_year)
+  ) as Qbase using (o_year)
 )

@@ -1,5 +1,5 @@
 create table lineage as (
-  select groups.*, supplier_rowid, lineitem_rowid, orders_rowid, customer_rowid, n2_rowid,  n2_rowid
+  select Qbase.*, supplier_rowid, lineitem_rowid, orders_rowid, customer_rowid, n2_rowid,  n2_rowid
   from (
     SELECT supplier.rowid as supplier_rowid, lineitem.rowid as lineitem_rowid, orders.rowid as orders_rowid,
         customer.rowid as customer_rowid, n1.rowid as n2_rowid, n2.rowid as n2_rowid,
@@ -14,7 +14,7 @@ create table lineage as (
                 AND n2.n_name = 'FRANCE'))
         AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
         AND CAST('1996-12-31' AS date)
-  ) as joins join (
+  ) as Qplus join (
     SELECT supp_nation, cust_nation, l_year, sum(volume) AS revenue
     FROM (
       SELECT n1.n_name AS supp_nation, n2.n_name AS cust_nation, extract(year FROM l_shipdate) AS l_year,
@@ -32,5 +32,5 @@ create table lineage as (
     )
     GROUP BY supp_nation, cust_nation, l_year
     ORDER BY supp_nation, cust_nation, l_year
-  ) as groups using (supp_nation, cust_nation, l_year)
+  ) as Qbase using (supp_nation, cust_nation, l_year)
 )

@@ -1,11 +1,11 @@
 create table lineage as (
-  select groups.*,  lineitem_rowid, part_rowid
+  select Qbase.*,  lineitem_rowid, part_rowid
   from (
     SELECT lineitem.rowid as lineitem_rowid, part.rowid as part_rowid
     FROM  lineitem, part
     WHERE l_partkey = p_partkey AND l_shipdate >= date '1995-09-01'
         AND l_shipdate < CAST('1995-10-01' AS date)
-  ) as joins, (
+  ) as Qplus, (
     SELECT
         100.00 * sum(
             CASE WHEN p_type LIKE 'PROMO%' THEN
@@ -19,5 +19,5 @@ create table lineage as (
       WHERE l_partkey = p_partkey AND l_shipdate >= date '1995-09-01'
           AND l_shipdate < CAST('1995-10-01' AS date)
     )
-  ) as groups
+  ) as Qbase
 )

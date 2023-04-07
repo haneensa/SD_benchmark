@@ -11,7 +11,7 @@ create table lineage as (
         )
         GROUP BY ps_partkey
         HAVING sum(ps_supplycost * ps_availqty) > (SELECT value FROM (
-          SELECT sum(ps_supplycost * ps_availqty) * 0.0000100000 as value
+          SELECT sum(ps_supplycost * ps_availqty) * 0.000100000 as value
           FROM (SELECT ps_supplycost, ps_availqty FROM partsupp, supplier, nation
                 WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY')
                                                 ) as simple_agg)
