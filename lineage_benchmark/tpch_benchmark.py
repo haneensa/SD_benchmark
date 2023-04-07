@@ -42,7 +42,7 @@ else:
 
 # sf: 1, 5, 10, 20
 # threads: 1, 4, 8, 12, 16
-sf_list = [1]
+sf_list = [0.01]
 threads_list = [1]#, 4, 8, 12, 16]
 results = []
 for sf in sf_list:
@@ -51,15 +51,19 @@ for sf in sf_list:
         con.execute("PRAGMA threads="+str(th_id))
         con.execute("PRAGMA force_parallelism")
     
-        for i in range(9, 10):
+        for i in range(2, 3):
+            args.qid = i
             qfile = prefix+str(i).zfill(2)+".sql"
             text_file = open(qfile, "r")
             query = text_file.read()
             text_file.close()
+            #query = "select  l_partkey from  lineitem group by l_partkey"
             print("%%%%%%%%%%%%%%%% Running Query # ", i, " threads: ", th_id)
             avg, df = Run(query, args, con, table_name)
             output_size = len(df)
             if table_name:
+                df = con.execute("select * from {}".format(table_name)).fetchdf()
+                print(df)
                 df = con.execute("select count(*) as c from {}".format(table_name)).fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("DROP TABLE "+table_name)

@@ -70,6 +70,7 @@ for N in N_list:
         print(filename)
         if not os.path.exists(filename):
             print("geenrate ", filename)
+
             n1, n2, n3, n4 = N[0], N[1], N[2], N[3]
             A = ZipfanGenerator(n1, a, card)
             ## n1 elements in B=0 and the rest are random
@@ -80,7 +81,7 @@ for N in N_list:
             D = ZipfanGenerator(n4, a, card)
 
             idx = list(range(0, card))
-            dataset = pd.DataFrame({'idx':idx, 'A': A.getAll(), 'B': B.getAll(), 'C': C.getAll(), 'D': D.getAll()})
+            dataset = pd.DataFrame({'A': A.getAll(), 'B': B.getAll(), 'C': C.getAll(), 'D': D.getAll()})
             dataset.to_csv(filename, index=False)
         else:
             dataset = pd.read_csv(filename)
@@ -88,11 +89,18 @@ for N in N_list:
         # initialize table
         con.register('t1_view', dataset)
         con.execute("create table t1 as select * from t1_view")
+
+        # get the number of distinct combinations:
+        # SELECT COUNT(DISTINCT A, B, C, D) FROM t1;
         output = con.execute("select rowid, * from t1").fetchdf()
         print(output)
         # queries
+
         level1 = "select A, B, C, D from t1 group by A, B, C, D"
         level2 = "select A, B, C from t1 join ({}) using (A,B,C, D) group by A, B, C".format(level1)
+        # level 1 and 2 from clause return the same data
+        # how does the lineage table differ if we use (from t1) vs (from t1 join level1)?
+
         level3 = "select A, B from t1 join ({}) using (A, B, C) group by A, B".format(level2)
         level4 = """select A from t1 join ({}) using (A, B) group by A""".format(level3)
         out_index = "ROW_NUMBER() OVER (ORDER BY (SELECT 0))"

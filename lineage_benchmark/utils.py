@@ -20,18 +20,19 @@ def getStats(con, q):
     return lineage_size, nchunks, postprocess_time
 def execute(Q, con, args):
     Q = " ".join(Q.split())
-    if args.profile:
-        con.execute("PRAGMA enable_profiling;")
     if args.enable_lineage:
         con.execute("PRAGMA trace_lineage='ON'")
+    if args.profile:
+        con.execute("PRAGMA enable_profiling")
+        con.execute("PRAGMA profiling_output='{}_plan.json';".format(args.qid))
     start = timer()
     df = con.execute(Q).fetchdf()
     end = timer()
+    if args.profile:
+        con.execute("PRAGMA disable_profiling;")
     if args.enable_lineage:
         con.execute("PRAGMA trace_lineage='OFF'")
         con.execute("PRAGMA clear_lineage")
-    if args.profile:
-        con.execute("PRAGMA disable_profiling;")
     return df, end - start
 
 def DropLineageTables(con):

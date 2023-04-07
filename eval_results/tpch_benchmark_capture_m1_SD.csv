@@ -7,8 +7,6 @@ query,runtime,sf,repeat,lineage_type,n_threads,output,stats,notes
 6,0.06775884999660775,1,1,SD_Capture,1,1,,m1_full
 7,0.38416703199618496,1,1,SD_Capture,1,4,,m1_full
 8,0.23362258200359065,1,1,SD_Capture,1,2,,m1_full
-9,3.035752612995566,1,1,SD_Capture,1,175,,m1_full
-10,0.3612028409988852,1,1,SD_Capture,1,20,,m1_full
 11,0.028892467998957727,1,1,SD_Capture,1,21953,,m1_full
 12,0.32441672600543825,1,1,SD_Capture,1,2,,m1_full
 13,0.24125455499597592,1,1,SD_Capture,1,42,,m1_full
