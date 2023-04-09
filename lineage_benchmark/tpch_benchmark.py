@@ -16,6 +16,7 @@ parser.add_argument('--stats', action='store_true',  help="get lineage size, nch
 parser.add_argument('--query_lineage', action='store_true',  help="query lineage")
 parser.add_argument('--persist', action='store_true',  help="Persist lineage captured")
 parser.add_argument('--perm', action='store_true',  help="use perm queries")
+parser.add_argument('--opt', action='store_true',  help="use optimized")
 parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
 parser.add_argument('--csv_append', action='store_true',  help="Append results to old csv")
 parser.add_argument('--sf', type=float, help="sf scale", default=1)
@@ -33,17 +34,21 @@ if args.perm:
     args.lineage_query = False
     lineage_type = "Logical-RID"
     table_name='lineage'
+    if args.opt:
+        prefix = "queries/optimized_perm/q"
+        lineage_type = "Logical-OPT"
 elif not args.enable_lineage:
     lineage_type = "Baseline"
 elif args.persist:
     lineage_type = "SD_Persist"
 else:
     lineage_type = "SD_Capture"
-
 # sf: 1, 5, 10, 20
 # threads: 1, 4, 8, 12, 16
-sf_list = [0.01]
+sf_list = [1]  
 threads_list = [1]#, 4, 8, 12, 16]
+opt_queries = [2, 4, 15, 16, 17, 20, 21, 22]
+dont_scale = [2, 4, 17, 20, 21]
 results = []
 for sf in sf_list:
     con.execute("CALL dbgen(sf="+str(sf)+");")
@@ -51,7 +56,9 @@ for sf in sf_list:
         con.execute("PRAGMA threads="+str(th_id))
         con.execute("PRAGMA force_parallelism")
     
-        for i in range(15, 16):
+        for i in range(22, 23):
+            if (args.opt == False and i in dont_scale): continue
+            if (args.opt and i not in opt_queries): continue
             args.qid = i
             qfile = prefix+str(i).zfill(2)+".sql"
             text_file = open(qfile, "r")
@@ -62,8 +69,8 @@ for sf in sf_list:
             avg, df = Run(query, args, con, table_name)
             output_size = len(df)
             if table_name:
-                df = con.execute("select * from {}".format(table_name)).fetchdf()
-                print(df)
+                #df = con.execute("select * from {}".format(table_name)).fetchdf()
+                #print(df)
                 df = con.execute("select count(*) as c from {}".format(table_name)).fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("DROP TABLE "+table_name)
