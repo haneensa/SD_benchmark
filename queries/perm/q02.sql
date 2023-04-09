@@ -17,8 +17,6 @@ FROM (
         WHERE  p_partkey = ps_partkey AND s_suppkey = ps_suppkey
             AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey AND r_name = 'EUROPE'
           )
-    ORDER BY s_acctbal DESC, n_name, s_name, p_partkey
-    LIMIT 100
 ) AS qplus,
 (
     SELECT partsupp.rowid as ps_rid2, 
@@ -37,7 +35,7 @@ WHERE
           FROM partsupp, supplier, nation, region
           WHERE qplus.p_partkey = ps_partkey AND s_suppkey = ps_suppkey AND s_nationkey = n_nationkey
               AND n_regionkey = r_regionkey AND r_name = 'EUROPE') as t1,
-        (SELECT  *, partsupp.rowid as ps_rid3, 
+        (SELECT  partsupp.rowid as ps_rid3, 
            supplier.rowid as s_rid3,
            nation.rowid as n_rid3, 
           region.rowid as r_rid3

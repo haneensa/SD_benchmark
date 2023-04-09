@@ -1,6 +1,6 @@
 create table lineage as (
-  select Qbase.*, customer_rowid, orders_rowid, lineitem_rowid, supplier_rowid,
-         nation_rowid, region_rowid
+  select Qbase.*, c_rid, o_rid, l_rid, s_rid,
+         n_rid, r_rid
   from (
     SELECT n_name, sum(l_extendedprice * (1 - l_discount)) AS revenue
     FROM (
@@ -15,9 +15,9 @@ create table lineage as (
     GROUP BY n_name
     ORDER BY revenue DESC
   ) as Qbase join (
-    SELECT customer.rowid as customer_rowid, orders.rowid as orders_rowid,
-           lineitem.rowid as lineitem_rowid, supplier.rowid as supplier_rowid,
-           nation.rowid as nation_rowid, region.rowid as region_rowid,
+    SELECT customer.rowid as c_rid, orders.rowid as o_rid,
+           lineitem.rowid as l_rid, supplier.rowid as s_rid,
+           nation.rowid as n_rid, region.rowid as r_rid,
            n_name
     FROM customer, orders, lineitem, supplier, nation, region
     WHERE c_custkey = o_custkey AND l_orderkey = o_orderkey

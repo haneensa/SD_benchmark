@@ -1,7 +1,7 @@
 create table lineage as (
-  SELECT Qbase.*, customer_rowid, orders_rowid, lineitem_rowid
+  SELECT Qbase.*, c_rid, o_rid, l_rid
   FROM (
-    SELECT customer.rowid as customer_rowid, orders.rowid as orders_rowid, lineitem.rowid as lineitem_rowid,
+    SELECT customer.rowid as c_rid, orders.rowid as o_rid, lineitem.rowid as l_rid,
         l_orderkey, o_orderdate, o_shippriority
     FROM customer, orders, lineitem
     WHERE c_mktsegment = 'BUILDING' AND c_custkey = o_custkey
@@ -11,8 +11,7 @@ create table lineage as (
     SELECT
         l_orderkey, sum(l_extendedprice * (1 - l_discount)) AS revenue, o_orderdate, o_shippriority
     FROM (
-      SELECT customer.rowid as customer_rowid, orders.rowid as orders_rowid, lineitem.rowid as lineitem_rowid,
-          l_orderkey, l_extendedprice, l_discount, o_orderdate, o_shippriority
+      SELECT l_orderkey, l_extendedprice, l_discount, o_orderdate, o_shippriority
       FROM customer, orders, lineitem
       WHERE c_mktsegment = 'BUILDING' AND c_custkey = o_custkey
           AND l_orderkey = o_orderkey AND o_orderdate < CAST('1995-03-15' AS date)

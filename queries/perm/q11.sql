@@ -10,18 +10,6 @@ create table lineage as (
           WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY'
         )
         GROUP BY ps_partkey
-          HAVING
-              sum(ps_supplycost * ps_availqty) > (
-                  SELECT
-                      sum(ps_supplycost * ps_availqty) * 0.000100000
-                  FROM
-                      partsupp,
-                      supplier,
-                      nation
-                  WHERE
-                      ps_suppkey = s_suppkey
-                      AND s_nationkey = n_nationkey
-                      AND n_name = 'GERMANY')
         ORDER BY value DESC
       ) as groups join (
         SELECT partsupp.rowid as partsupp_rowid, supplier.rowid as supplier_rowid, nation.rowid as nation_rowid,
@@ -36,4 +24,5 @@ create table lineage as (
         FROM partsupp, supplier, nation
         WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY')
     ) as subq
+    where value > value_inner
 )
