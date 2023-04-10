@@ -24,7 +24,7 @@ def execute(Q, con, args):
         con.execute("PRAGMA trace_lineage='ON'")
     if args.profile:
         con.execute("PRAGMA enable_profiling")
-        con.execute("PRAGMA profiling_output='{}_plan.json';".format(args.qid))
+        #con.execute("PRAGMA profiling_output='{}_plan.json';".format(args.qid))
     start = timer()
     df = con.execute(Q).fetchdf()
     end = timer()

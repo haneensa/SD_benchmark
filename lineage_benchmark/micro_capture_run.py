@@ -32,6 +32,7 @@ parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace
 parser.add_argument('--persist', action='store_true',  help="Persist lineage captured")
 parser.add_argument('--stats', action='store_true',  help="get lineage size, nchunks and postprocess time")
 parser.add_argument('--perm', action='store_true',  help="Use Perm Approach with join")
+parser.add_argument('--mat', action='store_true',  help="Use Perm Approach with join")
 parser.add_argument('--group_concat', action='store_true',  help="Use Perm Apprach with group concat")
 parser.add_argument('--list', action='store_true',  help="Use Perm Apprach with list")
 # benchmark setting
@@ -61,7 +62,7 @@ if args.perm and args.enable_lineage:
 ################### TODO: 
 # 1. Check data exists if not, then generate data
 folder = args.base + "benchmark_data/"
-groups = [10, 100, 1000]
+groups = [10, 50, 100, 1000]
 cardinality = [1000, 10000, 100000, 1000000, 5000000, 10000000]
 max_val = 100
 a_list = [1, 0]
@@ -121,24 +122,24 @@ cardinality = [(1000, 1000), (1000, 10000), (1000, 100000), (1000, 1000000)]
 sels = [0.8, 0.5, 0.2, 0.0]
 pred = "where t1.v < t2.v"
 op = "merge"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
+#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
 
 op = "nl"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
+#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
 
 pred = "where t1.v = t2.v or t1.v < t2.v"
 op = "bnl"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred, sels)
+#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred, sels)
 
 pred = ""
 op = "cross"
-join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
+#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
 
 
 ############## PKFK ##########
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
-a_list = [1, 0]
+a_list = [0, 1]
 op = "hash_join"
 #FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
 
@@ -150,25 +151,27 @@ args.repeat = 1
 args.repeat = repeat
 
 index_scan = True
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+
 
 ############## Join many-to-many ##########
 # zipf1.z is within [1,10] or [1,100]
 # zipf2.z is [1,100]
 # left size=1000, right size: 1000 .. 100000
-groups = [10, 100]
-cardinality = [10000, 100000, 1000000]
+cardinality = [1000, 10000, 100000]
+MicroDataZipfan(folder, [100], cardinality, max_val, a_list)
+
 op = "hash_join"
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, False)
+#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, False)
 op = "index_join"
 index_scan = False
 repeat = args.repeat
 args.repeat = 1
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, index_scan)
 args.repeat = repeat
 
 index_scan = True
-#MtM(con, args, folder, lineage_type, groups, cardinality, results, op, index_scan)
+#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, index_scan)
 
 
 ########### write results to csv
