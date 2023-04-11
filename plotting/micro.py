@@ -59,6 +59,11 @@ def PlotSelect(filterType):
     sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].aggregate(["mean", "min", "max"])
     print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
     print("Speedup: ", perm_overhead['runtime'] / sd_overhead['runtime'])
+    
+    perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+    sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+    print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+    print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
     """
 
     # full = copy + capture
@@ -134,8 +139,8 @@ def PlotSelect(filterType):
 ##### Hash Agg
 data = []
 group_label = "g2"
-PlotSelect("perfect_agg")
-PlotSelect("reg_agg")
+#PlotSelect("perfect_agg")
+#PlotSelect("reg_agg")
 agg_data = data
 data = []
 
@@ -151,10 +156,10 @@ data = []
 
 ##### In-Equality Joins
 data = []
-PlotSelect("nl")
-PlotSelect("merge")
-PlotSelect("bnl")
-PlotSelect("cross")
+#PlotSelect("nl")
+#PlotSelect("merge")
+#PlotSelect("bnl")
+#PlotSelect("cross")
 joins_in = data
 data = []
 
@@ -162,8 +167,8 @@ data = []
 
 ##### Equality Joins -- index join
 data = []
-PlotSelect("index_join_pkfk")
-PlotSelect("hash_join_pkfk")
+#PlotSelect("index_join_pkfk")
+#PlotSelect("hash_join_pkfk")
 equi_join = data
 
 """
