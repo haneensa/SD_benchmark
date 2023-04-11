@@ -48,6 +48,8 @@ if args.enable_lineage and args.persist:
     lineage_type = "SD_Persist"
 elif args.enable_lineage:
     lineage_type = "SD_Capture"
+if args.perm and args.mat:
+    lineage_type = "Perm-mat"
 elif args.perm:
     lineage_type = "Perm"
 else:
@@ -79,8 +81,8 @@ MicroDataSelective(folder, selectivity, cardinality)
 ########################################################
 groups = [100]
 cardinality = [1000000, 5000000, 10000000]
-#ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
-#OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
+ScanMicro(con, args, folder, lineage_type, groups, cardinality, results)
+OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
 
 ################### Filter ###########################
 ##  filter on 'z' with 'g' unique values and table size
@@ -91,9 +93,9 @@ cardinality = [1000000, 5000000, 10000000]
 selectivity = [0.0, 0.2, 0.5, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 pushdown = "filter"
-#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 pushdown = "clear"
-#FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
+FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
 
 ################### Hash Aggregate  ############
 ##  Group by on 'z' with 'g' unique values and table size
@@ -102,9 +104,9 @@ pushdown = "clear"
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 agg_type = "perfect"
-#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 agg_type = "reg"
-#int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
+int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, agg_type)
 groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 #hashAgg(con, args, folder, lineage_type, groups, cardinality, results)
@@ -119,21 +121,21 @@ cardinality = [1000000, 5000000, 10000000]
 print("------------ Test Joins-----------")
 
 cardinality = [(1000, 1000), (1000, 10000), (1000, 100000), (1000, 1000000)]
-sels = [0.8, 0.5, 0.2, 0.0]
+sels = [0.8, 0.5, 0.2, 0.1]
 pred = "where t1.v < t2.v"
 op = "merge"
-#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
 
 op = "nl"
-#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, True, pred, sels)
 
 pred = "where t1.v = t2.v or t1.v < t2.v"
 op = "bnl"
-#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred, sels)
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred, sels)
 
 pred = ""
 op = "cross"
-#join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
+join_lessthan(con, args, folder, lineage_type, cardinality, results, op, False, pred)
 
 
 ############## PKFK ##########
@@ -141,13 +143,13 @@ groups = [10, 100, 1000]
 cardinality = [1000000, 5000000, 10000000]
 a_list = [0, 1]
 op = "hash_join"
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op,False)
 
 op = "index_join"
 index_scan = False
 repeat = args.repeat
 args.repeat = 1
-#FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
+FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
 args.repeat = repeat
 
 index_scan = True

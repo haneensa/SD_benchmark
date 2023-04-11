@@ -35,30 +35,21 @@ def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
                 filename = "zipfan_g"+str(g)+"_card"+str(card)+"_a1.csv"
                 print(filename, p, g, card)
                 zipf1 = pd.read_csv(folder+filename)
-                proj_ids = 'idx'
                 for col in range(p):
                     zipf1["col{}".format(col)]  = np.random.randint(0, 100, len(zipf1))
-                    proj_ids += "+"
-                    proj_ids += "col{}".format(col)
+                perm_rid = ''
                 if args.perm:
-                    proj_ids += "+rowid"
+                    perm_rid = 'zipf1.rowid as rid,'
 
-                proj = "count({})".format(proj_ids)
                 con.register('zipf1_view', zipf1)
                 con.execute("create table zipf1 as select * from zipf1_view")
-                q = "SELECT {} as c FROM zipf1".format(proj)
-                table_name = None
-                if args.perm and args.mat:
-                        q = "SELECT rowid, * FROM zipf1"
-                        q = "create table zipf1_perm_lineage as "+ q
-                        table_name='zipf1_perm_lineage'
+                q = "SELECT {}* FROM zipf1".format(perm_rid)
+                q = "create table zipf1_perm_lineage as "+ q
+                table_name='zipf1_perm_lineage'
                 avg, df = Run(q, args, con, table_name)
-                if args.perm and args.mat:
-                    df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
-                    output_size = df.loc[0,'c']
-                    con.execute("drop table zipf1_perm_lineage")
-                else:
-                    output_size = df.loc[0,'c']
+                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table zipf1_perm_lineage")
                 stats = ""
                 if args.enable_lineage and args.stats:
                     lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -71,8 +62,6 @@ def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
 def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
     print("------------ Test Order By zipfan 1", lineage_type)
     projections = [0, 2, 4, 8] 
-    if args.perm and args.mat:
-        lineage_type = "Perm-mat"
     for g in groups:
         for card in cardinality:
             for p in projections:
@@ -82,29 +71,20 @@ def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
                 proj_ids = 'idx'
                 for col in range(p):
                     zipf1["col{}".format(col)]  = np.random.randint(0, 100, len(zipf1))
-                    proj_ids += "+"
-                    proj_ids += "col{}".format(col)
-                rids=''
+                perm_rid = ''
                 if args.perm:
-                    proj_ids += "+rowid"
-                    rids = ",rowid"
+                    perm_rid = 'zipf1.rowid as rid,'
 
-                proj = "count({})".format(proj_ids)
                 con.register('zipf1_view', zipf1)
                 con.execute("create table zipf1 as select * from zipf1_view")
-                q = "select {} as c from (SELECT *{} FROM zipf1 Order By z) as t".format(proj,rids)
+                q = "SELECT {}* FROM zipf1 Order By z".format(perm_rid)
                 table_name = None
-                if args.perm and args.mat:
-                    q = "SELECT rowid, * FROM zipf1 Order By z"
-                    q = "create table zipf1_perm_lineage as "+ q
-                    table_name='zipf1_perm_lineage'
+                q = "create table zipf1_perm_lineage as "+ q
+                table_name='zipf1_perm_lineage'
                 avg, df = Run(q, args, con, table_name)
-                if args.perm and args.mat:
-                    df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
-                    output_size = df.loc[0,'c']
-                    con.execute("drop table zipf1_perm_lineage")
-                else:
-                    output_size = df.loc[0,'c']
+                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table zipf1_perm_lineage")
                 stats = ""
                 if args.enable_lineage and args.stats:
                     lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -130,32 +110,22 @@ def FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, resul
                 filename = "filter_sel"+str(sel)+"_card"+str(card)+".csv"
                 print(filename, p, sel, card)
                 t1 = pd.read_csv(folder+filename)
-                proj_ids = 'idx'
                 for col in range(p):
                     t1["col{}".format(col)]  = np.random.randint(0, 100, len(t1))
-                    proj_ids += "+"
-                    proj_ids += "col{}".format(col)
-                rids=''
+                perm_rid = ''
                 if args.perm:
-                    proj_ids += "+rowid"
-                    rids = ",rowid"
+                    perm_rid = 't1.rowid as rid,'
 
-                proj = "count({})".format(proj_ids)
                 con.register('t1_view', t1)
                 con.execute("create table t1 as select * from t1_view")
-                q = "select {} as c from (SELECT *{} FROM t1 where z=0) as t".format(proj,rids)
+                q = "SELECT {}* FROM t1 where z=0".format(perm_rid)
                 table_name = None
-                if args.perm and args.mat:
-                    q = "SELECT rowid, * FROM t1 WHERE z=0"
-                    q = "create table t1_perm_lineage as "+ q
-                    table_name='t1_perm_lineage'
+                q = "create table t1_perm_lineage as "+ q
+                table_name='t1_perm_lineage'
                 avg, df = Run(q, args, con, table_name)
-                if args.perm and args.mat:
-                    df = con.execute("select count(*) as c from t1_perm_lineage").fetchdf()
-                    output_size = df.loc[0,'c']
-                    con.execute("drop table t1_perm_lineage")
-                else:
-                    output_size = df.loc[0,'c']
+                df = con.execute("select count(*) as c from t1_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table t1_perm_lineage")
                 stats = ""
                 if args.enable_lineage and args.stats:
                     lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -184,28 +154,24 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
             zipf1 = pd.read_csv(folder+filename)
             con.register('zipf1_view', zipf1)
             con.execute("create table zipf1 as select * from zipf1_view")
-            q = "select count(agg), count(z) as c from (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) as t"
+            q = "SELECT z, count(*) as agg FROM zipf1 GROUP BY z"
             table_name, method = None, ''
             if args.perm and args.group_concat:
-                q = "SELECT z, count(*), group_concat(rowid,',') FROM zipf1 GROUP BY z"
+                q = "SELECT z, count(*) as c, group_concat(rowid,',') FROM zipf1 GROUP BY z"
                 method="_group_concat"
             elif args.perm and args.list:
-                q = "SELECT z, count(*), list(rowid) FROM zipf1 GROUP BY z"
+                q = "SELECT z, count(*) as c , list(rowid) FROM zipf1 GROUP BY z"
                 method="_list"
             elif args.perm and args.mat:
-                q = "SELECT zipf1.rowid, z, agg FROM (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) join zipf1 using (z)"
+                q = "SELECT z, count(*) as c FROM zipf1 GROUP BY z) join zipf1 using (z)"
             elif args.perm:
-                q = "select count(rid), count(z), count(agg)  as c from (SELECT zipf1.rowid as rid, z, agg FROM (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) join zipf1 using (z))"
-            if args.perm and args.mat:
-                q = "create table zipf1_perm_lineage as "+ q
-                table_name='zipf1_perm_lineage'
+                q = "SELECT zipf1.rowid as rid, z, c FROM (SELECT z, count(*) as c FROM zipf1 GROUP BY z) join zipf1 using (z)"
+            q = "create table zipf1_perm_lineage as "+ q
+            table_name='zipf1_perm_lineage'
             avg, df = Run(q, args, con, table_name)
-            if args.perm and args.mat:
-                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
-                output_size = df.loc[0,'c']
-                con.execute("drop table zipf1_perm_lineage")
-            else:
-                output_size = df.loc[0,'c']
+            df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+            output_size = df.loc[0,'c']
+            con.execute("drop table zipf1_perm_lineage")
             stats = ""
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -233,7 +199,7 @@ def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
 
             con.register('zipf1_view', zipf1)
             con.execute("create table zipf1 as select * from zipf1_view")
-            q = "select count(*) as c from (SELECT z, count(*) FROM zipf1 GROUP BY z) as t"
+            q = "SELECT z, count(*) FROM zipf1 GROUP BY z"
             table_name, method = None, ''
             if args.perm and args.group_concat:
                 q = "SELECT z, count(*), group_concat(rowid,',') FROM zipf1 GROUP BY z"
@@ -243,16 +209,12 @@ def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
                 method="_list"
             elif args.perm:
                 q = "SELECT zipf1.rowid, z FROM (SELECT z, count(*) FROM zipf1 GROUP BY z) join zipf1 using (z)"
-            if args.perm:
-                q = "create table zipf1_perm_lineage as "+ q
-                table_name='zipf1_perm_lineage'
+            q = "create table zipf1_perm_lineage as "+ q
+            table_name='zipf1_perm_lineage'
             avg, df = Run(q, args, con, table_name)
-            if args.perm:
-                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
-                output_size = df.loc[0,'c']
-                con.execute("drop table zipf1_perm_lineage")
-            else:
-                output_size = df.loc[0,'c']
+            df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+            output_size = df.loc[0,'c']
+            con.execute("drop table zipf1_perm_lineage")
             stats = ""
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -289,33 +251,22 @@ def join_lessthan(con, args, folder, lineage_type, cardinality, results, op, for
                 for col in range(p):
                     t1["col{}".format(col)]  = np.random.randint(0, 100, len(t1))
                     t2["col{}".format(col)]  = np.random.randint(0, 100, len(t2))
-                    proj_ids += "+"
-                    proj_ids += "col{}".format(col)
-                rids=''
+                perm_rid = ''
                 if args.perm:
-                    proj_ids += "+r1_rowid+t2_rowid"
-                    rids = ",t1.rowid as r1_rowid, t2.rowid as t2_rowid"
-
-
-                proj = "count({})".format(proj_ids)
+                    perm_rid = "t1.rowid as r1_rowid, t2.rowid as t2_rowid, "
                 con.register('t1_view', t1)
                 con.execute("create table t1 as select * from t1_view")
                 con.register('t2_view', t2)
                 con.execute("create table t2 as select * from t2_view")
                 # Run query
-                q = "select {} as c from (select *{} from t1, t2 {}) as t".format(proj, rids, pred)
+                q = "select {}* from t1, t2 {}".format(perm_rid, pred)
                 table_name = None
-                if args.perm and args.mat:
-                    q = "SELECT t1.rowid as t1_rowid, t2.rowid as t2_rowid, * FROM t1, t2 {}".format(pred)
-                    q = "create table zipf1_perm_lineage as "+ q
-                    table_name='zipf1_perm_lineage'
+                q = "create table zipf1_perm_lineage as "+ q
+                table_name='zipf1_perm_lineage'
                 avg, df = Run(q, args, con, table_name)
-                if args.perm and args.mat:
-                    df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
-                    output_size = df.loc[0,'c']
-                    con.execute("drop table zipf1_perm_lineage")
-                else:
-                    output_size = df.loc[0,'c']
+                df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
+                output_size = df.loc[0,'c']
+                con.execute("drop table zipf1_perm_lineage")
                 stats = ""
                 if args.enable_lineage and args.stats:
                     lineage_size, nchunks, postprocess_time= getStats(con, q)
@@ -362,36 +313,24 @@ def FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, 
                     
                     con.register('FT_view', FT)
                     con.execute("create table FT as select * from FT_view")
-                    rids1, rids2 = '', ''
+                    perm_rid = ''
                     if args.perm:
-                        rids1 = "+FT_rowid+PT_rowid"
-                        rids2 = ", FT.rowid as FT_rowid, PT.rowid as PT_rowid"
+                        perm_rid = "FT.rowid as FT_rowid, PT.rowid as PT_rowid,"
                     if (op == "index_join"):
                         con.execute("create index i_index ON FT using art(z);");
                         if (index_scan):
-                            q = "select count(t.id+t.v{}) as c from (SELECT PT.id, PT.v{} FROM PT, FT WHERE PT.id=FT.z) as t".format(rids1, rids2)
+                            q = "SELECT {}PT.id, PT.v FROM PT, FT WHERE PT.id=FT.z".format(perm_rid)
                         else:
-                            q = "select count(t.v+t.id{}) as c from (SELECT PT.id, FT.v{} FROM PT, FT WHERE PT.id=FT.z) as t".format(rids1, rids2)
+                            q = "SELECT {}PT.id, FT.v FROM PT, FT WHERE PT.id=FT.z".format(perm_rid)
                     else:
-                        q = "select count(v+id{}) as c from (SELECT FT.v, PT.id{} FROM FT, PT WHERE PT.id=FT.z)".format(rids1, rids2)
+                        q = "SELECT {}FT.v, PT.id FROM FT, PT WHERE PT.id=FT.z".format(perm_rid)
                     table_name = None
-                    if args.perm and args.mat:
-                        if (op == "index_join"):
-                            if (index_scan):
-                                q = "SELECT FT.rowid as ft_rowid, PT.rowid as pt_rowid, PT.id, PT.v FROM FT, PT WHERE PT.id=FT.z"
-                            else:
-                                q = "SELECT FT.rowid as ft_rowid, PT.rowid as pt_rowid, PT.id, FT.idx FROM FT, PT WHERE PT.id=FT.z"
-                        else:
-                            q = "SELECT FT.rowid as ft_rowid, PT.rowid as pt_rowid, FT.v, PT.id FROM FT, PT WHERE FT.z=PT.id"
-                        q = "create table perm_lineage as "+ q
-                        table_name='perm_lineage'
+                    q = "create table perm_lineage as "+ q
+                    table_name='perm_lineage'
                     avg, df = Run(q, args, con, table_name)
-                    if args.perm and args.mat:
-                        df = con.execute("select count(*) as c from perm_lineage").fetchdf()
-                        output_size = df.loc[0,'c']
-                        con.execute("drop table perm_lineage")
-                    else:
-                        output_size = df.loc[0,'c']
+                    df = con.execute("select count(*) as c from perm_lineage").fetchdf()
+                    output_size = df.loc[0,'c']
+                    con.execute("drop table perm_lineage")
                     stats = ""
                     if args.enable_lineage and args.stats:
                         lineage_size, nchunks, postprocess_time= getStats(con, q)
