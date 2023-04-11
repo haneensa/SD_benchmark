@@ -1,10 +1,6 @@
 import pandas as pd
 from pygg import *
 
-class_list = [1,3,5,6,7,8,9,10,12,13,14,19, 2,4,11,15,16, 17,18,20,21,22]
-queries_order = [""+str(x)+"" for x in class_list]
-queries_order = ','.join(queries_order)
-
 
 # Source Sans Pro Light
 legend = theme_bw() + theme(**{
@@ -35,6 +31,9 @@ def overhead(base, extra): # in ms
     return max(((float(extra)-float(base)))*1000, 0)
 
 df = pd.read_csv("eval_results/tpch_benchmark_capture_m18.csv")
+df = df[df["lineage_type"]!="Logical-RID"]
+df_logical = pd.read_csv("eval_results/tpch_benchmark_capture_a9.csv")
+df = df.append(df_logical)
 df_stats = df[df["notes"]=="m18_stats"]
 df = df[df["notes"]!="m18_stats"]
 df = df[df["sf"]==1]
@@ -85,7 +84,14 @@ print(df_fcstats)
 
 type1 = [1, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14, 19]
 type2 = [11, 15, 16, 18]
-type3 = [2, 4, 17, 18, 20, 21, 22]
+type3 = [2, 4, 17, 20, 21, 22]
+class_list = [1,3,5,6,7,8,9,10,12,13,14,19, 2,4,11,15,16, 17,18,20,21,22]
+class_list = type1
+class_list.extend(type2)
+class_list.extend(type3)
+queries_order = [""+str(x)+"" for x in class_list]
+queries_order = ','.join(queries_order)
+
 print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["query", "sf", 'n_threads']).mean())
 print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["sf", 'n_threads']).mean())
 

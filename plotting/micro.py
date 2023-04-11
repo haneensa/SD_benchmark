@@ -162,9 +162,7 @@ p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, 
 p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
 p += axis_labels('Cardinality/Selectivity', "Overhead (ms)", "discrete")#, "log10")
 ggsave("micro_overhead_filter.png", p,  postfix=postfix, width=10, height=4)
-"""
 
-"""
 ## 2) detailed
 p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
 p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
@@ -172,14 +170,13 @@ p += facet_wrap("~optype~card~g", scales=esc("free_y"))
 ggsave("micro_overhead_scans.png", p,  width=15, height=10)
 alldata.extend(data)
 """
-"""
 
 data = []
 sels = [0.2, 0.8, 0.5, 0.0]
 for sel in sels:
-    #PlotSelect("nl_{}".format(sel))
-    #PlotSelect("merge_{}".format(sel))
-    #PlotSelect("bnl_{}".format(sel))
+    PlotSelect("nl_{}".format(sel))
+    PlotSelect("merge_{}".format(sel))
+    PlotSelect("bnl_{}".format(sel))
 alldata.extend(data)
 p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
 p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
@@ -193,6 +190,7 @@ ggsave("micro_overhead_none.png", p,  width=10, height=4)
 
 #PlotSelect("cross_0.0")
 
+"""
 
 data = []
 PlotSelect("index_join_pkfk_a1_False")
@@ -211,7 +209,6 @@ p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
 p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
 ggsave("micro_overhead_indexjoin_pkfk.png", p, width=10, height=4)
 
-"""
 data = []
 PlotSelect("hash_join_pkfk0")
 PlotSelect("hash_join_pkfk1")
@@ -226,7 +223,6 @@ p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, 
 p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
 p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
 ggsave("micro_overhead_hashjoin_pkfk.png", p,  postfix=postfix, width=10, height=4)
-"""
 
 
 data = []
