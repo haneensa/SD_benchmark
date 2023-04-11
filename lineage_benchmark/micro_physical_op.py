@@ -29,8 +29,6 @@ def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
     print("------------ Test Scan zipfan 1", lineage_type)
     projections = [0, 2, 4, 8] 
 
-    if args.perm and args.mat:
-        lineage_type = "Perm-mat"
     for g in groups:
         for card in cardinality:
             for p in projections:
@@ -124,8 +122,6 @@ def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
 ########################################################
 def FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown):
     print("------------ Test Filter zipfan 1 ", lineage_type, " filter_pushdown: ", pushdown)
-    if args.perm and args.mat:
-        lineage_type = "Perm-mat"
     con.execute("PRAGMA set_filter='{}'".format(pushdown))
     projections = [0, 2, 4, 8] 
     for sel in selectivity:
@@ -188,7 +184,7 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
             zipf1 = pd.read_csv(folder+filename)
             con.register('zipf1_view', zipf1)
             con.execute("create table zipf1 as select * from zipf1_view")
-            q = "select count(*) as c from (SELECT z, count(*) FROM zipf1 GROUP BY z) as t"
+            q = "select count(agg), count(z) as c from (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) as t"
             table_name, method = None, ''
             if args.perm and args.group_concat:
                 q = "SELECT z, count(*), group_concat(rowid,',') FROM zipf1 GROUP BY z"
@@ -196,13 +192,15 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
             elif args.perm and args.list:
                 q = "SELECT z, count(*), list(rowid) FROM zipf1 GROUP BY z"
                 method="_list"
+            elif args.perm and args.mat:
+                q = "SELECT zipf1.rowid, z, agg FROM (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) join zipf1 using (z)"
             elif args.perm:
-                q = "SELECT zipf1.rowid, z FROM (SELECT z, count(*) FROM zipf1 GROUP BY z) join zipf1 using (z)"
-            if args.perm:
+                q = "select count(rid), count(z), count(agg)  as c from (SELECT zipf1.rowid as rid, z, agg FROM (SELECT z, count(*) as agg FROM zipf1 GROUP BY z) join zipf1 using (z))"
+            if args.perm and args.mat:
                 q = "create table zipf1_perm_lineage as "+ q
                 table_name='zipf1_perm_lineage'
             avg, df = Run(q, args, con, table_name)
-            if args.perm:
+            if args.perm and args.mat:
                 df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
                 output_size = df.loc[0,'c']
                 con.execute("drop table zipf1_perm_lineage")
@@ -267,8 +265,6 @@ def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
 ################### Joins ###########################
 def join_lessthan(con, args, folder, lineage_type, cardinality, results, op, force_join, pred, sels=[0.0]):
     print("------------ Test Join  ", op, pred, force_join)
-    if args.perm and args.mat:
-        lineage_type = "Perm-mat"
     if (force_join):
         con.execute("PRAGMA set_join='{}'".format(op))
     projections = [0] 
@@ -333,8 +329,6 @@ def join_lessthan(con, args, folder, lineage_type, cardinality, results, op, for
 
 def FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan):
     print("------------ Test FK-PK ", op, index_scan)
-    if args.perm and args.mat:
-        lineage_type = "Perm-mat"
     if (op == "index_join"):
         con.execute("PRAGMA explain_output = PHYSICAL_ONLY;")
         con.execute("PRAGMA force_index_join")
