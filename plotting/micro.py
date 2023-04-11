@@ -44,8 +44,8 @@ def PlotSelect(filterType):
     # capture = full - copy
     #print(df_withB.groupby(['cardinality', 'groups', 'lineage_type_x', 'notes_x']).mean())
     
-    df_copy = df_withB[df_withB['notes_x'] == "feb24_copy"]
-    df_full = df_withB[df_withB['notes_x'] == "feb24_SD"]
+    df_copy = df_withB[df_withB['notes_x'] == "feb24b_copy"]
+    df_full = df_withB[df_withB['notes_x'] == "feb24b_full"]
     df_fc = pd.merge(df_copy, df_full, how='inner', on = ['cardinality', "groups"])
     df_fc = df_fc.drop(columns=["lineage_type_x_x", "lineage_type_y_y", "lineage_type_x_y", "lineage_type_y_x"])
     df_fc = df_fc.rename({'roverhead_y': 'full', 'roverhead_x': 'copy', 'output_y_x': 'output'}, axis=1)
@@ -69,24 +69,16 @@ def PlotSelect(filterType):
     summary = df_fcstats.groupby(['lineage_type', "cardinality"])["overhead_nor"].aggregate(['mean', 'min','max'])
     print(k, "--->", summary)
     #print(df_fcstats)
-    for index, row in df_fcstats.iterrows():
+    for index, row in df_fc.iterrows():
         vals = ["full", "copy", "capture"]
         for v in vals:
-            data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=int(row[v]), gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+            data.append(dict(system="SD", g=row["groups"], card=row["cardinality"], ltype=v, overhead=row[v], gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+            #data.append(dict(system="SD", nchunks=row['stats'].split(',')[1], g=row["groups"], card=row["cardinality"], ltype=v, overhead=10, gcard=str(row["cardinality"])+"~"+str(row["groups"]), optype=filterType))
+            print(data[len(data)-1])
     
     
 
 alldata = []
-data = []
-PlotSelect("scan")
-PlotSelect("orderby")
-PlotSelect("filter")
-PlotSelect("filter_scan")
-p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
-p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~gcard", scales=esc("free_y"))
-ggsave("micro_overhead_scans.png", p,  width=10, height=10)
-alldata.extend(data)
 data = []
 PlotSelect("perfect_agg")
 PlotSelect("reg_agg")
@@ -96,6 +88,16 @@ p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~optype~gcard", scales=esc("free_y"))
 ggsave("micro_overhead_gb.png", p,  width=10, height=10)
 
+alldata.extend(data)
+"""
+PlotSelect("scan")
+PlotSelect("orderby")
+PlotSelect("filter")
+PlotSelect("filter_scan")
+p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
+p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
+p += facet_wrap("~optype~gcard", scales=esc("free_y"))
+ggsave("micro_overhead_scans.png", p,  width=10, height=10)
 alldata.extend(data)
 
 data = []
@@ -127,3 +129,4 @@ p = ggplot(alldata, aes(x='nchunks', y='overhead', color=k, fill=k, group=k))
 p += geom_point(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
 p += facet_wrap("~ltype~optype", scales=esc("free_y"))
 ggsave("micro.png", p,  width=10, height=10)
+"""
