@@ -24,7 +24,7 @@ df_full = df_all[df_all["notes"]=="a11_full"]
 df_copy = df_all[df_all["notes"]=="a11_copy"]
 
 df_data = df_logical
-#df_data = df_data.append(df_full)
+df_data = df_data.append(df_full)
 #df_data = df_data.append(df_copy)
 
 pd.set_option("display.max_rows", None)
@@ -52,7 +52,13 @@ def PlotSelect(filterType):
     df_withB["roverhead"] = df_withB.apply(lambda x: relative_overhead(x['Bruntime'], x['runtime']), axis=1)
     df_withB["overhead"] = df_withB.apply(lambda x: overhead(x['Bruntime'], x['runtime']), axis=1)
     df_withB["fanout"] = df_withB.apply(lambda x: fanout(x['output'],float(x['Boutput'])), axis=1)
-    print(df_withB)
+    
+    perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].aggregate(["mean", "min", "max"])
+    print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+    
+    sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].aggregate(["mean", "min", "max"])
+    print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+    print("Speedup: ", perm_overhead['runtime'] / sd_overhead['runtime'])
     """
 
     # full = copy + capture
@@ -91,8 +97,6 @@ def PlotSelect(filterType):
     df_fcstats["nchunks"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[1]), axis=1)
     df_fcstats = df_fcstats.drop(columns=["stats"])
     
-    perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].aggregate(["mean", "min", "max"])
-    print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
     sd_overhead = df_fcstats.aggregate(["mean", "min", "max"])
     print("SD: ", sd_overhead[['overhead_f', 'runtime_f', 'roverhead_f', 'foverhead_nor']])
     print("Speedup: ", perm_overhead['runtime'] / sd_overhead['runtime_f'])
