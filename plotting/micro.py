@@ -53,17 +53,50 @@ def PlotSelect(filterType):
     df_withB["overhead"] = df_withB.apply(lambda x: overhead(x['Bruntime'], x['runtime']), axis=1)
     df_withB["fanout"] = df_withB.apply(lambda x: fanout(x['output'],float(x['Boutput'])), axis=1)
     
-    perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].aggregate(["mean", "min", "max"])
-    print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+    if filterType == "index_join_pkfk":
+        df_withB["lineage_type"] = df_withB.apply(lambda x: x["lineage_type"] + x["groups"].split(",")[3], axis=1)
+        ops = ["False", "True"]
+        for o in ops:
+            perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"+o].aggregate(["mean", "min", "max"])
+            print(o, " Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+            
+            sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"+o].aggregate(["mean", "min", "max"])
+            print(o, " SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+            print(o, " Speedup: ", perm_overhead['roverhead'] / sd_overhead['roverhead'])
+            perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"+o].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+            sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"+o].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+            m = pd.merge(perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ],  sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ], how='inner', on=['cardinality', 'groups', 'p']) 
+            print(m)
+    else:
+        perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].aggregate(["mean", "min", "max"])
+        print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+        
+        sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].aggregate(["mean", "min", "max"])
+        print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+        print("Speedup: ", perm_overhead['roverhead'] / sd_overhead['roverhead'])
+        
+        perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+        sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
+        m = pd.merge(perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ],  sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ], how='inner', on=['cardinality', 'groups', 'p']) 
+        print(m)
     
-    sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].aggregate(["mean", "min", "max"])
-    print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
-    print("Speedup: ", perm_overhead['runtime'] / sd_overhead['runtime'])
-    
-    perm_overhead = df_withB[df_withB["lineage_type"]=="Perm"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
-    sd_overhead = df_withB[df_withB["lineage_type"]=="SD_Capture"].groupby(["cardinality","groups","p"]).aggregate(["mean"])
-    print("Perm: ", perm_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
-    print("SD_Capture: ", sd_overhead[ ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] ]) 
+    for index, row in df_withB.iterrows():
+        '''
+        if (row["cardinality"] == 1000): row["cardinality"] = "1K"
+        if (row["cardinality"] == 10000): row["cardinality"] = "10K"
+        if (row["cardinality"] == 100000): row["cardinality"] = "100K"
+        if (row["cardinality"] == 1000000): row["cardinality"] = "1M"
+        if (row["cardinality"] == 5000000): row["cardinality"] = "5M"
+        if (row["cardinality"] == 10000000): row["cardinality"] = "10M"
+        '''
+        ltype = row["lineage_type"]
+        card = row["cardinality"]
+        groups = row["groups"]
+        rel_overhead = row["roverhead"]
+        over = row["overhead"]
+        p = row["p"]
+
+        data.append(dict(g1=str(p)+"/"+str(groups), g2=filterType+ltype, system=ltype,p=p,  g=groups, cardinality=card, roverhead=rel_overhead, overhead=over,  optype=filterType))
     """
 
     # full = copy + capture
@@ -124,30 +157,20 @@ def PlotSelect(filterType):
 
         for v in vals:
             data.append(dict(g2="SD/"+filterType, system="SD", g1="{}/{}".format(row["cardinality"],str(row["groups"])), g=row["groups"], card=row["cardinality"], ltype=v, roverhead=row['roverhead_'+v], overhead=row['overhead_'+v], optype=filterType))
-    for index, row in df_withB.iterrows():
-        if (row["cardinality"] == 1000): row["cardinality"] = "1K"
-        if (row["cardinality"] == 10000): row["cardinality"] = "10K"
-        if (row["cardinality"] == 100000): row["cardinality"] = "100K"
-        if (row["cardinality"] == 1000000): row["cardinality"] = "1M"
-        if (row["cardinality"] == 5000000): row["cardinality"] = "5M"
-        if (row["cardinality"] == 10000000): row["cardinality"] = "10M"
-        if (row["lineage_type"] == "Perm"):
-            data.append(dict(g2="Perm/"+filterType, system="Perm", g1=row["cardinality"]+"/"+str(row["groups"]), g=row["groups"], card=row["cardinality"], ltype="Perm", roverhead=row['roverhead'], overhead=row["overhead"],  optype=filterType))
     """
     
 
 ##### Hash Agg
 data = []
-group_label = "g2"
-#PlotSelect("perfect_agg")
-#PlotSelect("reg_agg")
+PlotSelect("perfect_agg")
+PlotSelect("reg_agg")
 agg_data = data
 data = []
 
 ##### Scans
 data = []
-PlotSelect("scan")
-PlotSelect("orderby")
+#PlotSelect("scan")
+#PlotSelect("orderby")
 PlotSelect("filter")
 PlotSelect("filter_scan")
 scans_data = data
@@ -156,110 +179,75 @@ data = []
 
 ##### In-Equality Joins
 data = []
-#PlotSelect("nl")
-#PlotSelect("merge")
-#PlotSelect("bnl")
-#PlotSelect("cross")
-joins_in = data
+PlotSelect("nl")
+PlotSelect("merge")
+PlotSelect("bnl")
+PlotSelect("cross")
+ineq_joins = data
 data = []
 
 
 
 ##### Equality Joins -- index join
 data = []
-#PlotSelect("index_join_pkfk")
-#PlotSelect("hash_join_pkfk")
+PlotSelect("index_join_pkfk")
+index_join = data
+data = []
+PlotSelect("hash_join_pkfk")
 equi_join = data
 
-"""
-# AGG Plotting
-p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
-p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~card~g", scales=esc("free_y"))
-ggsave("micro_overhead_gb.png", p,  width=10, height=10)
-
 ## filter plots: 
-## 1) X-axis: cardinality, Y-axis: relative overhead; group: selectivity+optype
+## 1) X-axis: selectivity | projection, Y-axis: relative overhead | overhead; group: cardinality
 cardinality_str = ["1M", "5M", "10M"]
 selections_str = ["0.0", "0.2", "0.5", "1.0"]
 group_order= ["'{}/{}'".format(a, b) for a in cardinality_str for b in selections_str]
 group_order = ','.join(group_order)
 
+group_label = "g2"
 postfix = "data$card= factor(data$card, levels=c({}))".format(group_order)
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('Cardinality/Selectivity', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_filter.png", p,  postfix=postfix, width=10, height=4)
+y_axis_list = ["roverhead", "overhead"]
+for y_axis in y_axis_list:
+    p = ggplot(scans_data, aes(x='g1', y=y_axis, color=group_label, fill=group_label, group=group_label, shape=group_label))
+    p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
+    p += axis_labels('Cardinality/Selectivity', "{}".format(y_axis), "discrete")
+    p += facet_wrap("~cardinality", scales=esc("free_y"))
+    ggsave("micro_{}_filter.png".format(y_axis), p,  width=20, height=4)
 
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('Cardinality/Selectivity', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_filter.png", p,  postfix=postfix, width=10, height=4)
+## hash join plots: 
+## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: cardinality
+for y_axis in y_axis_list:
+    p = ggplot(equi_join, aes(x='g1', y=y_axis, color=group_label, fill=group_label, group=group_label, shape=group_label))
+    p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
+    p += axis_labels('Cardinality/Selectivity', "{}".format(y_axis), "discrete")
+    p += facet_wrap("~cardinality", scales=esc("free_y"))
+    ggsave("micro_{}_equiJoin.png".format(y_axis), p,  width=20, height=4)
 
-## 2) detailed
-p = ggplot(data, aes(x='ltype', y='overhead', color='ltype', fill='ltype', group='ltype', shape='ltype'))
-p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)# + coord_flip()
-p += facet_wrap("~optype~card~g", scales=esc("free_y"))
-ggsave("micro_overhead_scans.png", p,  width=15, height=10)
-alldata.extend(data)
+## index join plots: 
+## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: cardinality
+for y_axis in y_axis_list:
+    p = ggplot(index_join, aes(x='g1', y=y_axis, color=group_label, fill=group_label, group=group_label, shape=group_label))
+    p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
+    p += axis_labels('Cardinality/Selectivity', "{}".format(y_axis), "discrete")
+    p += facet_wrap("~cardinality", scales=esc("free_y"))
+    ggsave("micro_{}_indexJoin.png".format(y_axis), p,  width=20, height=4)
+## aggs
+## 1) X-axis: groups | skew, Y-axis: relative overhead | overhead; group: cardinality
+for y_axis in y_axis_list:
+    p = ggplot(agg_data, aes(x='g1', y=y_axis, color=group_label, fill=group_label, group=group_label, shape=group_label))
+    p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
+    p += axis_labels('Cardinality/Selectivity', "{}".format(y_axis), "discrete")
+    p += facet_wrap("~cardinality", scales=esc("free_y"))
+    ggsave("micro_{}_agg.png".format(y_axis), p,  width=20, height=4)
 
 # joins inequiality
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('Cardinality/Selectivity', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_none.png", p,   width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('Cardinality/Selectivity', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_none.png", p,  width=10, height=4)
-# joins equi
-alldata.extend(data)
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_indexjoin_pkfk.png", p, width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_indexjoin_pkfk.png", p, width=10, height=4)
-# hash join
-alldata.extend(data)
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_hashjoin_pkfk.png", p,  postfix=postfix, width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_hashjoin_pkfk.png", p,  postfix=postfix, width=10, height=4)
-
-
-data = []
-PlotSelect("index_join_mtmFalse")
-PlotSelect("index_join_mtmTrue")
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_indexjoin_mtm.png", p,  postfix=postfix, width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_indexjoin_mtm.png", p,  postfix=postfix, width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='roverhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Relative Overhead (%)", "discrete")#, "log10")
-ggsave("micro_roverhead_hashjoin_pkfk.png", p,  postfix=postfix, width=10, height=4)
-
-p = ggplot(data, aes(x='g1', y='overhead', color=group_label, fill=group_label, group=group_label, shape=group_label))
-p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)# + coord_flip()
-p += axis_labels('n/g', "Overhead (ms)", "discrete")#, "log10")
-ggsave("micro_overhead_hashjoin_mtm.png", p,  postfix=postfix, width=10, height=4)
-
+## 1) X-axis: selectivity Y-axis: relative overhead | overhead; group: cardinality
+for y_axis in y_axis_list:
+    p = ggplot(ineq_joins, aes(x='g1', y=y_axis, color=group_label, fill=group_label, group=group_label, shape=group_label))
+    p += geom_bar(stat=esc('identity'), position=esc("dodge"), alpha=0.8, width=0.5)
+    p += axis_labels('Cardinality/Selectivity', "{}".format(y_axis), "discrete")
+    p += facet_wrap("~cardinality", scales=esc("free_y"))
+    ggsave("micro_{}_ineq.png".format(y_axis), p,  width=20, height=4)
+"""
 # what kind of graph do I want?
 # mean of capture and copy and full per operator
 # x-axis: operator; y-axis: normalized capture overhead

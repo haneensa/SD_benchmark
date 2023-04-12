@@ -33,6 +33,16 @@ def overhead(base, extra): # in ms
 df = pd.read_csv("eval_results/tpch_benchmark_capture_m18.csv")
 df = df[df["lineage_type"]!="Logical-RID"]
 df_logical = pd.read_csv("eval_results/tpch_benchmark_capture_a9.csv")
+
+df_logical_opt = df_logical[df_logical['lineage_type']== "Logical-OPT"]
+df_logical_rid = df_logical[df_logical['lineage_type']== "Logical-RID"]
+print(df_logical_rid["lineage_type"])
+df_logical_rid["lineage_type"] = df_logical_rid.apply(lambda x: x["lineage_type"] if x["query"] in df_logical_opt["query"].values else "Logical-OPT", axis=1)
+print(df_logical_rid["lineage_type"])
+
+# whenever opt does not exist for a query, use the same value as rid
+df_logical_missing = df_logical_rid[df_logical_rid["lineage_type"]=="Logical-OPT"]
+df_logical = df_logical.append(df_logical_missing)
 df = df.append(df_logical)
 df_stats = df[df["notes"]=="m18_stats"]
 df = df[df["notes"]!="m18_stats"]
@@ -82,10 +92,19 @@ df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/
 df_fcstats = df_fcstats.drop(columns=["stats"])
 print(df_fcstats) 
 
-type1 = [1, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14, 19]
-type2 = [11, 15, 16, 18]
-type3 = [2, 4, 17, 20, 21, 22]
-class_list = [1,3,5,6,7,8,9,10,12,13,14,19, 2,4,11,15,16, 17,18,20,21,22]
+type1 = ['1', '3', '5', '6', '7', '8', '9', '10', '12', '13', '14', '19']
+
+type2 = ['11', '15', '16', '18']
+type3 = ['2', '4', '17', '20', '21', '22']
+
+def cat(qid):
+    if qid in type1:
+        return "type1"
+    elif qid in type2:
+        return "type2"
+    else:
+        return "type3"
+df_withB["qtype"] = df_withB.apply(lambda x: cat(str(x['query'])), axis=1)
 class_list = type1
 class_list.extend(type2)
 class_list.extend(type3)
@@ -99,20 +118,20 @@ for index, row in df_withB.iterrows():
     if (row["notes"] == "m18_copy"):
         continue
     name = row['lineage_type']# + row["notes"]
-    data.append(dict(system=name, notes=row["notes"], overhead=row["overhead"], rel_overhead=row["rel_overhead"], qid=row['query']))
+    qtype = row['qtype']
+    notes = row['notes']
+    over = row['overhead']
+    rel_over = row['rel_overhead']
+    qid = str(row['query'])
+    data.append(dict(qtype=qtype, system=name, notes=notes, overhead=over, rel_overhead=rel_over, qid=qid))
 
-p = ggplot(data, aes(x='qid', y='overhead', color='system', fill='system', group='system', shape='system'))
-p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Runtime Overhead (ms)", "discrete", "log10")
-#p += ylim(lim=[0,300])
-p += legend_bottom
-postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-ggsave("tpch_overhead.png", p,  width=6, height=3.5)
-
-p = ggplot(data, aes(x='qid', y='rel_overhead', color='system', fill='system', group='system', shape='system'))
-p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Relative Overhead % (log)", "discrete", "log10")
-postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-#p += ylim(lim=[0,300])
-p += legend_bottom
-ggsave("tpch_relative_overhead.png", p, postfix=postfix, width=6, height=3)
+y_axis_list = ["rel_overhead", "overhead"]
+header = ["Relative Overhead %", "Runtime Overhead (ms)"]
+for idx, y_axis in enumerate(y_axis_list):
+    p = ggplot(data, aes(x='qid', y=y_axis, color='system', fill='system', group='system', shape='system'))
+    p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+    p += axis_labels('Query', "{} (log)".format(header[idx]), "discrete", "log10")
+    p += legend_bottom
+    p += facet_wrap("~qtype", scales=esc("free_x"))
+    postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
+    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=8, height=3)
