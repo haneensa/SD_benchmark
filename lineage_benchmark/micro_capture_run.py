@@ -48,19 +48,21 @@ if args.enable_lineage and args.persist:
     lineage_type = "SD_Persist"
 elif args.enable_lineage:
     lineage_type = "SD_Capture"
-if args.perm and args.mat:
+elif args.perm and args.mat:
     lineage_type = "Perm-mat"
 elif args.perm:
     lineage_type = "Perm"
 else:
     lineage_type = "Baseline"
 
+print("Lineage Type: ", lineage_type, args.enable_lineage)
 con = duckdb.connect(database=':memory:', read_only=False)
 
 if args.perm and args.enable_lineage:
     args.enable_lineage=False
 
 
+args.r = 3
 ################### TODO: 
 # 1. Check data exists if not, then generate data
 folder = args.base + "benchmark_data/"
@@ -90,7 +92,7 @@ OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results)
 #   different selectivity
 #   TODO: specify data cardinality: [nothing, 50%, 100%]
 ########################################################
-selectivity = [0.0, 0.2, 0.5, 1.0]
+selectivity = [0.02, 0.2, 0.5, 1.0]
 cardinality = [1000000, 5000000, 10000000]
 pushdown = "filter"
 FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, results, pushdown)
@@ -154,27 +156,6 @@ args.repeat = repeat
 
 index_scan = True
 FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan)
-
-
-############## Join many-to-many ##########
-# zipf1.z is within [1,10] or [1,100]
-# zipf2.z is [1,100]
-# left size=1000, right size: 1000 .. 100000
-cardinality = [1000, 10000, 100000]
-MicroDataZipfan(folder, [100], cardinality, max_val, a_list)
-
-op = "hash_join"
-#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, False)
-op = "index_join"
-index_scan = False
-repeat = args.repeat
-args.repeat = 1
-#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, index_scan)
-args.repeat = repeat
-
-index_scan = True
-#MtM(con, args, folder, lineage_type, sels, cardinality, results, op, index_scan)
-
 
 ########### write results to csv
 if args.save_csv:
