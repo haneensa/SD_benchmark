@@ -60,8 +60,8 @@ def SmokedDuck(q, q_lineage, level):
         results.append(["SD_Capture", level, avg, -1, card, N[0], N[1], N[2], N[3], stats, args.notes])
 ################### Check data exists if not, then generate data
 folder = "benchmark_data/"
-cardinality = [1000]
-N_list = [(10, 10, 10, 10)]
+cardinality = [100000]
+N_list = [(1000, 100, 10, 1)]
 a = 1
 
 for N in N_list:
