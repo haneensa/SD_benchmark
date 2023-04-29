@@ -133,6 +133,8 @@ for index, row in df_withB.iterrows():
 
 sd_data = []
 for index, row in df_fcstats.iterrows():
+    if row["sf"] == 20:
+        continue
     name = "SD"
     qid = str(row['query'])
     sf = "'{}'".format(str(row["sf"]))
@@ -152,9 +154,11 @@ for idx, y_axis in enumerate(y_axis_list):
     postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
     ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=8, height=2.5)
 
+queries_order = [""+str(x)+"" for x in range(1,23)]
+queries_order = ','.join(queries_order)
 p = ggplot(sd_data, aes(x='qid', y="size", fill="sf", group="sf"))
 p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Size (MB) [log]", "discrete", "log10")
+p += axis_labels('Query', "Size (MB) [log]", "discrete", "log10") + coord_flip()
 p += legend_bottom
 postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-ggsave("tpch_metrics.png", p, postfix=postfix,  width=8, height=3)
+ggsave("tpch_metrics.png", p, postfix=postfix,  width=2.5, height=4)
