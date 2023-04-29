@@ -36,9 +36,9 @@ df_logical = pd.read_csv("eval_results/tpch_benchmark_capture_a9.csv")
 
 df_logical_opt = df_logical[df_logical['lineage_type']== "Logical-OPT"]
 df_logical_rid = df_logical[df_logical['lineage_type']== "Logical-RID"]
-print(df_logical_rid["lineage_type"])
+#print(df_logical_rid["lineage_type"])
 df_logical_rid["lineage_type"] = df_logical_rid.apply(lambda x: x["lineage_type"] if x["query"] in df_logical_opt["query"].values else "Logical-OPT", axis=1)
-print(df_logical_rid["lineage_type"])
+#print(df_logical_rid["lineage_type"])
 
 # whenever opt does not exist for a query, use the same value as rid
 df_logical_missing = df_logical_rid[df_logical_rid["lineage_type"]=="Logical-OPT"]
@@ -46,7 +46,7 @@ df_logical = df_logical.append(df_logical_missing)
 df = df.append(df_logical)
 df_stats = df[df["notes"]=="m18_stats"]
 df = df[df["notes"]!="m18_stats"]
-df = df[df["sf"]==1]
+#df = df[df["sf"]==1]
 pd.set_option("display.max_rows", None)
 #pd.set_option("display.max_columns", None)
 
@@ -72,7 +72,7 @@ df_copy = df_copy[["query", "sf", "n_threads", "rel_overhead", "notes", "overhea
 df_fc = pd.merge(df_copy, df_full, how='inner', on = ['query', "sf", 'n_threads'])
 print("Copy vs Full")
 print(df_fc)
-df_fc = pd.merge(df_full, df_logical, how='inner', on = ['query', "sf", 'n_threads'])
+df_stats = df_stats[["stats", "query", "sf", 'n_threads']]
 
 def normalize(full, nchunks):
     #full *= 100
@@ -80,10 +80,6 @@ def normalize(full, nchunks):
         return full
     else:
         return full/nchunks
-
-print("Logical vs Full")
-df_stats = df_stats[["stats", "query", "sf", 'n_threads']]
-
 df_fcstats = pd.merge(df_fc, df_stats, how='inner', on = ['query', 'sf', 'n_threads'])
 df_fcstats["full_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhead_x'],float(x['stats'].split(',')[1])), axis=1)
 df_fcstats["copy_overhead_nor"] = df_fcstats.apply(lambda x: normalize(x['overhead_x'],float(x['stats'].split(',')[1])), axis=1)
@@ -92,6 +88,11 @@ df_fcstats["size"] = df_fcstats.apply(lambda x: float(x['stats'].split(',')[0])/
 df_fcstats = df_fcstats.drop(columns=["stats"])
 print(df_fcstats) 
 
+
+print("Logical vs Full")
+df_fc = pd.merge(df_fcstats, df_logical, how='inner', on = ['query', "sf", 'n_threads'])
+print(df_fc) 
+
 type1 = ['1', '3', '5', '6', '7', '8', '9', '10', '12', '13', '14', '19']
 
 type2 = ['11', '15', '16', '18']
@@ -99,11 +100,11 @@ type3 = ['2', '4', '17', '20', '21', '22']
 
 def cat(qid):
     if qid in type1:
-        return "type1"
+        return "1. (n) Joins + Aggregations"
     elif qid in type2:
-        return "type2"
+        return "2. Nested sub-queries"
     else:
-        return "type3"
+        return "3. Correlated sub-queries"
 df_withB["qtype"] = df_withB.apply(lambda x: cat(str(x['query'])), axis=1)
 class_list = type1
 class_list.extend(type2)
@@ -115,9 +116,14 @@ print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["query", "sf", 'n_thr
 print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["sf", 'n_threads']).mean())
 
 for index, row in df_withB.iterrows():
-    if (row["notes"] == "m18_copy"):
+    if (row["notes"] == "m18_copy" or row["sf"]!=1):
         continue
     name = row['lineage_type']# + row["notes"]
+    if name == "Logical-RID":
+        name = "Logical"
+    elif name == "SD_Capture":
+        name = "SD"
+
     qtype = row['qtype']
     notes = row['notes']
     over = row['overhead']
@@ -125,13 +131,30 @@ for index, row in df_withB.iterrows():
     qid = str(row['query'])
     data.append(dict(qtype=qtype, system=name, notes=notes, overhead=over, rel_overhead=rel_over, qid=qid))
 
+sd_data = []
+for index, row in df_fcstats.iterrows():
+    name = "SD"
+    qid = str(row['query'])
+    sf = "'{}'".format(str(row["sf"]))
+    size = row["size"]
+    nchunks = row["nchunks"]
+    sd_data.append(dict(qid=qid, size=size, stype="MB", sf=sf))
+    #sd_data.append(dict(qid=qid, size=nchunks, stype="#logs", sf=sf))
+
 y_axis_list = ["rel_overhead", "overhead"]
-header = ["Relative Overhead %", "Runtime Overhead (ms)"]
+header = ["Relative Overhead %", "Overhead (ms)"]
 for idx, y_axis in enumerate(y_axis_list):
     p = ggplot(data, aes(x='qid', y=y_axis, color='system', fill='system', group='system', shape='system'))
     p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-    p += axis_labels('Query', "{} (log)".format(header[idx]), "discrete", "log10")
+    p += axis_labels('Query', "{} [log]".format(header[idx]), "discrete", "log10")
     p += legend_bottom
     p += facet_wrap("~qtype", scales=esc("free_x"))
     postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=8, height=3)
+    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=8, height=2.5)
+
+p = ggplot(sd_data, aes(x='qid', y="size", fill="sf", group="sf"))
+p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+p += axis_labels('Query', "Size (MB) [log]", "discrete", "log10")
+p += legend_bottom
+postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
+ggsave("tpch_metrics.png", p, postfix=postfix,  width=8, height=3)
