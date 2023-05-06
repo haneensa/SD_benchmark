@@ -31,7 +31,7 @@ legend_side = legend + theme(**{
 
 # for each query, 
 def overhead(sys, baseSys):
-    return (sys-baseSys)*1000
+    return (sys-baseSys)
 
 def relative_overhead(sys, baseSys, base):
     """
@@ -220,8 +220,11 @@ def PlotSelect(filterType):
     df_LogicalwithB["roverhead"] = df_LogicalwithB.apply(lambda x: relative_overhead(x['runtime'], x['Bruntime'], x['BbaseExec']), axis=1)
     df_LogicalwithB["overhead"] = df_LogicalwithB.apply(lambda x: overhead(x['runtime'], x['Bruntime']), axis=1)
     df_LogicalwithB["fanout"] = df_LogicalwithB.apply(lambda x: fanout(x['output'],float(x['Boutput'])), axis=1)
-    df_LogicalwithB["matOverhead"] = df_LogicalwithB.apply(lambda x: (x["mat"] - x['Bmat'])*1000, axis=1)
-    df_LogicalwithB["execOverhead"] = df_LogicalwithB.apply(lambda x:( x["allExcept"] - x['BallExcept'])*1000, axis=1)
+    df_LogicalwithB["matOverhead"] = df_LogicalwithB.apply(lambda x: (x["mat"] - x['Bmat']), axis=1)
+    df_LogicalwithB["execOverhead"] = df_LogicalwithB.apply(lambda x:( x["allExcept"] - x['BallExcept']), axis=1)
+    
+    df_LogicalwithB["matROverhead"] = df_LogicalwithB.apply(lambda x: max((x["matOverhead"] / x["BbaseExec"])*100, 0), axis=1)
+    df_LogicalwithB["execROverhead"] = df_LogicalwithB.apply(lambda x: max((x["execOverhead"] / x["BbaseExec"])*100, 0), axis=1)
     
     df_sdwithB = pd.merge(df_sd, df_Baseline, how='inner', on = ['cardinality', "groups", "p", "r"])
     
@@ -230,12 +233,10 @@ def PlotSelect(filterType):
     df_sdwithB["fanout"] = df_sdwithB.apply(lambda x: fanout(x['output'],float(x['Boutput'])), axis=1)
     df_withB = df_sdwithB
     df_withB = df_withB.append(df_LogicalwithB)
-    perm_select = ["overhead", "fanout", "roverhead", "runtime", "Bruntime", "matOverhead", "execOverhead"] 
+    perm_select = ["overhead", "fanout", "roverhead", "runtime", "Bruntime", "matOverhead", "execOverhead", "matROverhead", "execROverhead"] 
     sd_select = ["overhead", "fanout", "roverhead", "runtime", "Bruntime"] 
     if filterType == "index_join_pkfk":
-        df_withB["lineage_type_temp"] = df_withB.apply(lambda x: x["lineage_type"] + x["groups"].split(",")[3], axis=1)
-        df_statsq["lineage_type_temp"] = df_statsq.apply(lambda x: x["lineage_type"] + x["groups"].split(",")[3], axis=1)
-        
+
         df_withB["card2"] = df_withB.apply(lambda x:  x["groups"].split(",")[0], axis=1)
         df_statsq["card2"] = df_statsq.apply(lambda x:  x["groups"].split(",")[0], axis=1)
         
@@ -254,6 +255,9 @@ def PlotSelect(filterType):
         df_withB["p"] = df_withB.apply(lambda x: "Qidx" if x["index_scan"] == "False" else "Qno_idx", axis=1)
         df_statsq["p"] = df_statsq.apply(lambda x:  "Qidx" if x["index_scan"] == "False" else "Qno_idx", axis=1)
         
+        df_withB["lineage_type_temp"] = df_withB.apply(lambda x: x["lineage_type"] + x["p"], axis=1)
+        df_statsq["lineage_type_temp"] = df_statsq.apply(lambda x: x["lineage_type"] + x["p"], axis=1)
+        
         ops = ["Qidx", "Qno_idx"]
         for o in ops:
             perm_overhead = df_withB[df_withB["lineage_type_temp"]=="Perm"+o].aggregate(["mean", "min", "max"])
@@ -262,9 +266,9 @@ def PlotSelect(filterType):
             sd_overhead = df_withB[df_withB["lineage_type_temp"]=="SD_Capture"+o].groupby(["notes"]).aggregate(["mean", "min", "max"])
             print(o, " SD_Capture: ", sd_overhead[ sd_select ]) 
             print(o, " Speedup: ", perm_overhead['roverhead'] / sd_overhead['roverhead'])
-            perm_overhead = df_withB[df_withB["lineage_type_temp"]=="Perm"+o].groupby(["card2", "cardinality","groups","p"]).aggregate(["mean"])
-            sd_overhead = df_withB[df_withB["lineage_type_temp"]=="SD_Capture"+o].groupby(["card2", "cardinality","groups","p", "notes"]).aggregate(["mean"])
-            m = pd.merge(perm_overhead[ perm_select ],  sd_overhead[ sd_select ], how='inner', on=["card2", 'cardinality', 'groups', 'p']) 
+            perm_overhead = df_withB[df_withB["lineage_type_temp"]=="Perm"+o].groupby(["card2", "cardinality","groups","p", "sel"]).aggregate(["mean"])
+            sd_overhead = df_withB[df_withB["lineage_type_temp"]=="SD_Capture"+o].groupby(["card2", "cardinality","groups","p", "notes", "sel"]).aggregate(["mean"])
+            m = pd.merge(perm_overhead[ perm_select ],  sd_overhead[ sd_select ], how='inner', on=["card2", 'cardinality', 'groups', 'p', "sel"]) 
             print(m)
     elif filterType in ["cross", "nl", "bnl", "merge"]:
         df_withB["card2"] = df_withB.apply(lambda x:  x["groups"].split(",")[0], axis=1)
@@ -328,7 +332,7 @@ def PlotSelect(filterType):
     
     df_full = df_full.drop(columns=["lineage_type", "output", "fanout"])
     
-    df_full = df_full[["sel", "card2", "roverhead", "overhead", "runtime", "cardinality", "groups", "p"]]
+    df_full = df_full[["sel", "card2", "roverhead", "overhead", "runtime", "cardinality", "groups", "p", "BbaseExec"]]
     df_copy = df_copy[["sel", "card2", "roverhead", "overhead", "runtime", "cardinality", "groups", "p"]]
     
     df_full = df_full.rename({'roverhead': 'roverhead_f','overhead':'overhead_f', 'runtime':"runtime_f" }, axis=1)
@@ -365,6 +369,8 @@ def PlotSelect(filterType):
             ltype = "Logical"
             mat_over = row["matOverhead"]
             over = row["execOverhead"]
+            mat_over_R = row["matROverhead"]
+            over_R = row["execROverhead"]
             rel_overhead = row["roverhead"]
             card_g = "{}/{}".format(card, groups)
             p_g = "{}/{}".format(p, groups)
@@ -373,8 +379,8 @@ def PlotSelect(filterType):
             op_ltype = filterType+ltype
             card2 = row['card2']
             sel = row['sel']
-            data.append(dict(overheadType="mat", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=rel_overhead, overhead=mat_over,  optype=filterType))
-            data.append(dict(overheadType="exec", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=rel_overhead, overhead=over,  optype=filterType))
+            data.append(dict(overheadType="mat", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=mat_over_R, overhead=mat_over*1000,  optype=filterType))
+            data.append(dict(overheadType="exec", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=over_R, overhead=over*1000,  optype=filterType))
 
     for index, row in df_fc.iterrows():
         card = row["cardinality"]
@@ -382,7 +388,9 @@ def PlotSelect(filterType):
         p = row["p"]
         ltype = "SD"
         copy_over = max(row["overhead_c"], 0)
+        copy_over_relative = (copy_over / row["BbaseExec"])*100
         logging_over = max(row["overhead_f"] - copy_over, 0)
+        logging_over_relative = (logging_over / row["BbaseExec"])*100
         card2 = row['card2']
         sel = row['sel']
         #print(logging_over, copy_over, card2, sel)
@@ -395,8 +403,8 @@ def PlotSelect(filterType):
         p_card = "{}/{}".format(p, card)
         ltype_a = "{}_a{}".format(ltype, p)
         op_ltype = filterType+ltype
-        data.append(dict(overheadType="exec", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=rel_overhead, overhead=copy_over,  optype=filterType))
-        data.append(dict(overheadType="mat", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=rel_overhead, overhead=logging_over,  optype=filterType))
+        data.append(dict(overheadType="exec", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=copy_over_relative, overhead=copy_over*1000,  optype=filterType))
+        data.append(dict(overheadType="mat", sel=sel, card2=card2, card_g=card_g, p_g=p_g, p_card=p_card, ltype_a=ltype_a, op_ltype=op_ltype, system=ltype,p=p, g=groups, cardinality=card, roverhead=logging_over_relative, overhead=logging_over*1000,  optype=filterType))
 
 cardinality_str = ["1M", "5M", "10M"]
 selections_str = ["0.0", "0.2", "0.5", "1.0"]
@@ -407,7 +415,7 @@ postfix = "data$card= factor(data$card, levels=c({}))".format(group_order)
 # Reorder the category variable based on the defined group order
 
 y_axis_list = ["roverhead", "overhead"]
-header = ["Relative Overhead %", "Overhead (ms)"]
+header = ["Relative\nOverhead %", "Overhead (ms)"]
     
 '''
 proj_str = [3, 5, 7, 11]
@@ -419,14 +427,127 @@ gorder = """data$p_g = factor(data$p_g, levels=c({}))""".format(group_order)
 
 
 
+#### cross
+# vary cardinality of n2
+# both systems dominated by materializations overhead
+data = []
+PlotSelect("cross")
+cross_data = data
+for idx, y_axis in enumerate(y_axis_list):
+    filtered_cross_data = cross_data
+    if y_axis == 'roverhead':
+        filtered_cross_data = [d for d in cross_data if d[label] == "exec"]
+        linetype = None
+    else:
+        linetype = label
 
+    pdata = filtered_cross_data
+    x_axis, x_label = "card2", "Cardinality"
+    x_type, y_type, y_label = "continuous", "log10",  "{} [log]".format(header[idx])
+    color, facet = "system", None
+    fname = "micro_{}_cross.png".format(y_axis)
+    w, h = 5.5, 2.5
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
+##### Hash Agg
+# vary cardinality and groups
+# varying cardinality: same relative overhead across
+# varying groups: perm execution overhead increasese as groups decreases for the same cardinality
+data = []
+PlotSelect("perfect_agg")
+PlotSelect("reg_agg")
+agg_data = data
+## aggs
+## 1) X-axis: groups | skew, Y-axis: relative overhead | overhead; group: cardinality
+for y_axis in y_axis_list:
+    p = ggplot(agg_data, aes(x='card_g', y=y_axis, fill=label))
+    p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)
+    p += axis_labels('Carinality (n)/ groups (g)', "{}".format(y_axis), "discrete")  + coord_flip() 
+    p += facet_wrap("~system~optype", scales=esc("free_x"))
+    ggsave("micro_{}_agg.png".format(y_axis), p,  postfix=gorder, width=10, height=6)
 
+for idx, y_axis in enumerate(y_axis_list):
+    filtered_agg_data = [d for d in agg_data if d['cardinality'] == 10000000 and d['optype']=="reg_agg"]
+    linetype = label
 
+    pdata = filtered_agg_data
+    x_axis, x_label, y_label = "g", "Groups (g)", "{} [log]".format(header[idx])
+    x_type, y_type = "continuous", "log10"
+    color, facet = "system", None
+    fname = "micro_{}_10M_line_reg_agg.png".format(y_axis)
+    w, h = 4, 2.5
 
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
+
+##### Equality Joins -- hash join
+data = []
+PlotSelect("hash_join_pkfk")
+equi_join = data
+for d in equi_join:
+    d["p"] = "Skew: {}".format(d["p"])
+
+## hash join plots: 
+## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: cardinality
+for idx, y_axis in enumerate(y_axis_list):
+    filtered_equi_join = [d for d in equi_join]
+    linetype = label
+
+    pdata = filtered_equi_join
+    x_axis, x_label = "sel", "Selectivity"
+    x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+    #x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+    color, facet = "system", "~p~cardinality~card2"
+    fname = "micro_{}_line_hashJoin.png".format(y_axis)
+    w, h = 8, 8
+
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
     
+    filtered_equi_join = [d for d in filtered_equi_join if d['cardinality'] == 10000000 and d["card2"]=='1000']
+    pdata = filtered_equi_join
+    x_axis, x_label = "sel", "Selectivity"
+    #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+    x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+    color, facet = "system", "~p"
+    fname = "micro_{}_10M_1k_line_hashJoin.png".format(y_axis)
+    w, h = 6, 2.5
 
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
+##### In-Equality Joins
+# vary n2 and selectivity of the join condition
+data = []
+PlotSelect("nl")
+PlotSelect("merge")
+PlotSelect("bnl")
+ineq_joins = data
+
+# joins inequiality
+## 1) X-axis: selectivity Y-axis: relative overhead | overhead; group: cardinality
+for idx, y_axis in enumerate(y_axis_list):
+    filtered_ineq_joins = [d for d in ineq_joins]
+    linetype = label
+
+    pdata = filtered_ineq_joins
+    x_axis, x_label = "sel", "Selectivity"
+    #x_type, y_type, y_label = "continuous",  x_type, "{}".format(header[idx])
+    x_type, y_type, y_label = "continuous", "log10", "{} [log]".format(header[idx])
+    color, facet = "system", "~optype~card2"
+    fname = "micro_{}_line_ineq.png".format(y_axis)
+    w, h = 8, 4
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
+
+for idx, y_axis in enumerate(y_axis_list):
+    filtered_ineq_joins = [d for d in ineq_joins if d['card2'] == '1000000']
+    linetype = label
+
+    pdata = filtered_ineq_joins
+    x_axis, x_label = "sel", "Selectivity"
+    #x_type, y_type, y_label = "continuous",  x_type, "{}".format(header[idx])
+    x_type, y_type, y_label = "continuous", "log10", "{} [log]".format(header[idx])
+    color, facet = "system", "~optype"
+    fname = "micro_{}_10M_1k_line_ineq.png".format(y_axis)
+    w, h = 6, 2.5
+    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
 ##### Scans
 data = []
@@ -451,11 +572,7 @@ ops = ["filter", "filter_scan"]
 for op in ops:
     for idx, y_axis in enumerate(y_axis_list):
         filtered_data = simple_data[op]
-        if y_axis == 'roverhead':
-            filtered_data = [d for d in filtered_data if d[label] == "exec"]
-            linetype = None
-        else:
-            linetype = label
+        linetype = label
 
         pdata = filtered_data
         x_axis, x_label = "g", "Selectivity"
@@ -467,11 +584,7 @@ for op in ops:
 
         PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
-        if y_axis == 'roverhead':
-            filtered_data = [d for d in filtered_data if d[label] == "exec"]
-            linetype = None
-        else:
-            linetype = label
+        linetype = label
 
         pdata = filtered_data
         x_axis, x_label = "p", "Projected Columns"
@@ -484,19 +597,15 @@ for op in ops:
         PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
         filtered_data = [d for d in simple_data[op] if d['cardinality'] == 10000000 and d['p']==3]
-        if y_axis == 'roverhead':
-            filtered_data = [d for d in filtered_data if d[label] == "exec"]
-            linetype = None
-        else:
-            linetype = label
+        linetype = label
 
         pdata = filtered_data
         x_axis, x_label= "g", "Selectivity",
-        x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-        #x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
         color, facet = "system", None#"~p"
         fname = "micro_{}_10M_p3_line_{}.png".format(y_axis, op)
-        w, h = 4, 2.5
+        w, h = 5, 2.5
 
         PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
@@ -506,16 +615,12 @@ ops = ["scans", "orderby"]
 for op in ops:
     for idx, y_axis in enumerate(y_axis_list):
         filtered_data = simple_data[op]
-        if y_axis == 'roverhead':
-            filtered_data = [d for d in filtered_data if d[label] == "exec"]
-            linetype = None
-        else:
-            linetype = label
+        linetype = label
 
         pdata = filtered_data
         x_axis, x_label = "cardinality", "#col / Selectivity"
-        x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-        #x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
         color, facet = "system", "~p"
         fname = "micro_{}_line_{}.png".format(y_axis, op)
         w, h = 8, 3
@@ -523,143 +628,9 @@ for op in ops:
         PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
 
-##### In-Equality Joins
-# vary n2 and selectivity of the join condition
-data = []
-PlotSelect("nl")
-PlotSelect("merge")
-PlotSelect("bnl")
-ineq_joins = data
-
-# joins inequiality
-## 1) X-axis: selectivity Y-axis: relative overhead | overhead; group: cardinality
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_ineq_joins = [d for d in ineq_joins]
-    if y_axis == 'roverhead':
-        filtered_ineq_joins = [d for d in filtered_ineq_joins if d[label] == "exec"]
-        linetype = None
-    else:
-        linetype = label
-
-    pdata = filtered_ineq_joins
-    x_axis, x_label = "sel", "Selectivity"
-    #x_type, y_type, y_label = "continuous",  x_type, "{}".format(header[idx])
-    x_type, y_type, y_label = "continuous", "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~optype~card2"
-    fname = "micro_{}_line_ineq.png".format(y_axis)
-    w, h = 8, 4
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_ineq_joins = [d for d in ineq_joins if d['card2'] == '1000000']
-    if y_axis == 'roverhead':
-        filtered_ineq_joins = [d for d in filtered_ineq_joins if d[label] == "exec"]
-        linetype = None
-    else:
-        linetype = label
-
-    pdata = filtered_ineq_joins
-    x_axis, x_label = "sel", "Selectivity"
-    #x_type, y_type, y_label = "continuous",  x_type, "{}".format(header[idx])
-    x_type, y_type, y_label = "continuous", "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~optype"
-    fname = "micro_{}_10M_1k_line_ineq.png".format(y_axis)
-    w, h = 4.5, 2.7
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-#### cross
-# vary cardinality of n2
-# both systems dominated by materializations overhead
-data = []
-PlotSelect("cross")
-cross_data = data
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_cross_data = cross_data
-    if y_axis == 'roverhead':
-        filtered_cross_data = [d for d in cross_data if d[label] == "exec"]
-        linetype = None
-    else:
-        linetype = label
-
-    pdata = filtered_cross_data
-    x_axis, x_label = "card2", "Cardinality"
-    x_type, y_type, y_label = "continuous", "log10",  "{} [log]".format(header[idx])
-    color, facet = "system", None
-    fname = "micro_{}_cross.png".format(y_axis)
-    w, h = 5.5, 2.5
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-##### Equality Joins -- hash join
-data = []
-PlotSelect("hash_join_pkfk")
-equi_join = data
-for d in equi_join:
-    d["p"] = "Skew: {}".format(d["p"])
-
-## hash join plots: 
-## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: cardinality
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_equi_join = [d for d in equi_join]
-    if y_axis == 'roverhead':
-        filtered_equi_join = [d for d in filtered_equi_join if d[label] == "exec"]
-        linetype = None
-    else:
-        linetype = label
-
-    pdata = filtered_equi_join
-    x_axis, x_label = "sel", "Selectivity"
-    x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-    #x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~p~cardinality~card2"
-    fname = "micro_{}_line_hashJoin.png".format(y_axis)
-    w, h = 8, 8
-
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-    
-    filtered_equi_join = [d for d in filtered_equi_join if d['cardinality'] == 10000000 and d["card2"]=='1000']
-    pdata = filtered_equi_join
-    x_axis, x_label = "sel", "Selectivity"
-    x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-    #x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~p"
-    fname = "micro_{}_10M_1k_line_hashJoin.png".format(y_axis)
-    w, h = 4, 2.5
-
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-##### Hash Agg
-# vary cardinality and groups
-# varying cardinality: same relative overhead across
-# varying groups: perm execution overhead increasese as groups decreases for the same cardinality
-data = []
-PlotSelect("perfect_agg")
-PlotSelect("reg_agg")
-agg_data = data
-## aggs
-## 1) X-axis: groups | skew, Y-axis: relative overhead | overhead; group: cardinality
-for y_axis in y_axis_list:
-    p = ggplot(agg_data, aes(x='card_g', y=y_axis, fill=label))
-    p += geom_bar(stat=esc('identity'), alpha=0.8, width=0.5)
-    p += axis_labels('Carinality (n)/ groups (g)', "{}".format(y_axis), "discrete")  + coord_flip() 
-    p += facet_wrap("~system~optype", scales=esc("free_x"))
-    ggsave("micro_{}_agg.png".format(y_axis), p,  postfix=gorder, width=10, height=6)
-
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_agg_data = [d for d in agg_data if d['cardinality'] == 10000000 and d['optype']=="reg_agg"]
-    if y_axis == 'roverhead':
-        filtered_agg_data = [d for d in filtered_agg_data if d['overheadType'] == "exec"]
-        linetype = None
-    else:
-        linetype = label
-
-    pdata = filtered_agg_data
-    x_axis, x_label, y_label = "g", "Groups (g)", "{} [log]".format(header[idx])
-    x_type, y_type = "continuous", "log10"
-    color, facet = "system", None
-    fname = "micro_{}_10M_line_reg_agg.png".format(y_axis)
-    w, h = 4, 2.5
-
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 '''
 
-def PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h):
+def PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h, wrap=None):
     if linetype:
         p = ggplot(pdata, aes(x=x_axis, y=y_axis, color=color, linetype=linetype))
         p += geom_point()
@@ -670,6 +641,8 @@ def PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, li
     p += axis_labels(x_label, y_label, x_type, y_type)
     if facet:
         p += facet_grid(facet, scales=esc("free_y"))
+    if wrap:
+        p += facet_wrap(wrap)
     p += legend_bottom
     p += legend_side
     ggsave(fname, p,  width=w, height=h, scale=0.8)
@@ -686,32 +659,38 @@ for d in index_join:
 
 ## index join plots: 
 ## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: cardinality
-for idx, y_axis in enumerate(y_axis_list):
-    filtered_index_join = [d for d in index_join]
-    if y_axis == 'roverhead':
-        filtered_index_join = [d for d in filtered_index_join if d[label] == "exec"]
-        linetype = None
+ps = ["Qidx", "Qno_idx"]
+ps_2 = ["Q_P,F", "Q_P"]
+for d in index_join:
+    if d["p"] == "Qidx":
+        d["p"] = ps_2[0]
     else:
+        d["p"] = ps_2[1]
+ps = ps_2
+for p in ps:
+    for idx, y_axis in enumerate(y_axis_list):
+        filtered_index_join = [d for d in index_join]
         linetype = label
+        pdata = filtered_index_join
+        x_axis, x_label = "sel", "Selectivity"
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+        color, facet = "system", "~p~g~cardinality~card2"
+        fname = "micro_{}_line_indexJoin.png".format(y_axis)
+        w, h = 8, 10
 
-    pdata = filtered_index_join
-    x_axis, x_label = "sel", "Selectivity"
-    #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-    x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~p~g~cardinality~card2"
-    fname = "micro_{}_line_indexJoin.png".format(y_axis)
-    w, h = 8, 10
+        PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
+        
+        filtered_index_join = [d for d in filtered_index_join if d['cardinality'] == 10000000 and d['card2']=='1000' and d["p"]==p]
 
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-    
-    filtered_index_join = [d for d in filtered_index_join if d['cardinality'] == 10000000 and d['card2']=='1000']
+        pdata = filtered_index_join
+        x_axis, x_label = "sel", "Selectivity"
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
+        color, facet = "system", "~system~p~g"
+        fname = "micro_{}_{}_10M_1k_line_indexJoin.png".format(y_axis, p)
+        w, h = 6, 3
 
-    pdata = filtered_index_join
-    x_axis, x_label = "sel", "Selectivity"
-    #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(header[idx])
-    x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(header[idx])
-    color, facet = "system", "~p~g"
-    fname = "micro_{}_10M_1k_line_indexJoin.png".format(y_axis)
-    w, h = 5.5, 2.7
+        PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h, "p")
+    break
 
-    PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)

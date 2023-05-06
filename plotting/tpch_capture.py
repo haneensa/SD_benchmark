@@ -22,7 +22,12 @@ legend_bottom = legend + theme(**{
   "legend.position":esc("bottom"),
   #"legend.spacing": "unit(-.5, 'cm')"
 
-}),
+})
+
+legend_side = legend + theme(**{
+  "legend.position":esc("right"),
+})
+
 # for each query, 
 def relative_overhead(base, extra): # in %
     return max(((float(extra)-float(base))/float(base))*100, 0)
@@ -92,6 +97,7 @@ print(df_fcstats)
 print("Logical vs Full")
 df_fc = pd.merge(df_fcstats, df_logical, how='inner', on = ['query', "sf", 'n_threads'])
 print(df_fc) 
+print(df_fc[["sf", "n_threads", "query", "rel_overhead_y", "rel_overhead", "overhead_y", "overhead"]].groupby(["sf", 'n_threads']).aggregate(["mean", "min", "max"]))
 
 type1 = ['1', '3', '5', '6', '7', '8', '9', '10', '12', '13', '14', '19']
 
@@ -100,9 +106,9 @@ type3 = ['2', '4', '17', '20', '21', '22']
 
 def cat(qid):
     if qid in type1:
-        return "1. (n) Joins + Aggregations"
+        return "1. Joins + Aggregations"
     elif qid in type2:
-        return "2. Nested sub-queries"
+        return "2. Uncorrelated sub-queries"
     else:
         return "3. Correlated sub-queries"
 df_withB["qtype"] = df_withB.apply(lambda x: cat(str(x['query'])), axis=1)
@@ -115,8 +121,11 @@ queries_order = ','.join(queries_order)
 print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["query", "sf", 'n_threads']).mean())
 print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["sf", 'n_threads']).mean())
 
+print(df_fcstats[["sf", "n_threads", "query", "nchunks", "size"]].groupby(["sf", 'n_threads']).aggregate(["mean", "min", "max"]))
 for index, row in df_withB.iterrows():
-    if (row["notes"] == "m18_copy" or row["sf"]!=1):
+    if row["sf"] != 1:
+        continue
+    if (row["notes"] == "m18_copy"):
         continue
     name = row['lineage_type']# + row["notes"]
     if name == "Logical-RID":
@@ -124,12 +133,13 @@ for index, row in df_withB.iterrows():
     elif name == "SD_Capture":
         name = "SD"
 
+    sf = "'{}'".format(str(row["sf"]))
     qtype = row['qtype']
     notes = row['notes']
     over = row['overhead']
     rel_over = row['rel_overhead']
     qid = str(row['query'])
-    data.append(dict(qtype=qtype, system=name, notes=notes, overhead=over, rel_overhead=rel_over, qid=qid))
+    data.append(dict(sf=sf, qtype=qtype, system=name, notes=notes, overhead=over, rel_overhead=rel_over, qid=qid))
 
 sd_data = []
 for index, row in df_fcstats.iterrows():
@@ -144,15 +154,16 @@ for index, row in df_fcstats.iterrows():
     #sd_data.append(dict(qid=qid, size=nchunks, stype="#logs", sf=sf))
 
 y_axis_list = ["rel_overhead", "overhead"]
-header = ["Relative Overhead %", "Overhead (ms)"]
+header = ["Relative \nOverhead %", "Overhead (ms)"]
 for idx, y_axis in enumerate(y_axis_list):
     p = ggplot(data, aes(x='qid', y=y_axis, color='system', fill='system', group='system', shape='system'))
     p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
     p += axis_labels('Query', "{} [log]".format(header[idx]), "discrete", "log10")
     p += legend_bottom
+    p += legend_side
     p += facet_wrap("~qtype", scales=esc("free_x"))
     postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=8, height=2.5)
+    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=9, height=2.5)
 
 queries_order = [""+str(x)+"" for x in range(1,23)]
 queries_order = ','.join(queries_order)
