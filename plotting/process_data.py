@@ -253,7 +253,8 @@ def preprocess(con, result_file, lday, lfull, lcopy, lstats):
     print(con.execute("""create table micro_perm_metrics as select {},'Logical' as lineage_type,
                                 (runtime - base_runtime)*1000 as overhead,
                                 ((runtime - base_runtime)/base_op_runtime)*100 as rel_overhead,
-                                ((plan_runtime - mat_time) - (base_plan_runtime - base_mat_time))*1000 as exec_overhead,
+                                ((plan_runtime-base_plan_runtime)-(mat_time-base_mat_time))*1000 as exec_overhead,
+                                ((plan_runtime-base_plan_runtime))*1000 as total_overhead,
                                 (((plan_runtime - mat_time) - (base_plan_runtime - base_mat_time))/base_op_runtime)*100 as exec_rel_overhead,
                                 (mat_time - base_mat_time)*1000 as mat_overhead,
                                 ((mat_time - base_mat_time) / base_op_runtime) *100 as mat_rel_overhead,
@@ -265,6 +266,7 @@ def preprocess(con, result_file, lday, lfull, lcopy, lstats):
                                 (sd_full.op_runtime - sd_full.base_op_runtime)*1000 as overhead,
                                 ((sd_full.op_runtime - sd_full.base_op_runtime)/sd_full.base_op_runtime) * 100 as rel_overhead,
                                 ((sd_copy.op_runtime-sd_copy.base_op_runtime))*1000 as exec_overhead,
+                                (sd_full.op_runtime - sd_full.base_op_runtime)*1000 as total_overhead,
                                 ((sd_copy.op_runtime-sd_copy.base_op_runtime)/sd_full.base_op_runtime)*100 as exec_rel_overhead,
                                 ((sd_full.op_runtime - sd_full.base_op_runtime)-(sd_copy.op_runtime-sd_copy.base_op_runtime))*1000 as mat_overhead,
                                 (((sd_full.op_runtime - sd_full.base_op_runtime)-(sd_copy.op_runtime-sd_copy.base_op_runtime))/sd_full.base_op_runtime)*100 as mat_rel_overhead,
@@ -280,10 +282,10 @@ def get_db():
     database = "micro.db"
     if os.path.exists(database):
         con = duckdb.connect(database=database, read_only=False)
-        con.execute("DROP TABLE queries_list")
+        con.execute("DROP TABLE IF EXISTS queries_list")
     else:
         con = duckdb.connect(database=database, read_only=False)
-        con.execute("DROP TABLE queries_list")
+        con.execute("DROP TABLE IF EXISTS queries_list")
         result_file = "eval_results/micro_benchmark_notes_a12.csv"
         lcopy = "a12_copy"
         lfull = "a12_full"
