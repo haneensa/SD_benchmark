@@ -26,6 +26,9 @@ legend_bottom = legend + theme(**{
 
 })
 
+legend_none = legend + theme(**{"legend.position": esc("none")})
+
+
 legend_side = legend + theme(**{
   "legend.position":esc("right"),
   "legend.margin":"margin(t = 0, unit='cm')"
@@ -132,19 +135,79 @@ if 0:
     p += legend_side
     ggsave("micro_overhead_10M_line_reg_agg.png", p, width=6, height=2, scale=0.8)
 
-where = """ WHERE
-  overheadType <> 'Execute' AND op_type in ('nl', 'merge', 'bnl')  
+    where = """ WHERE
+      overheadType <> 'Execute' AND op_type in ('nl', 'merge', 'bnl')  
+    """
+    d = { "bnl": "BNL", "merge": "Merge", "nl": "NL"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['op_type'] = df['op_type'].apply(d.get)
+    df['n2'] = df['n2'].apply(lambda v: v / 1000)
+    print(df)
+    p = ggplot(df, aes(x='n2', color='System', y='roverhead', linetype='overheadType', shape='System'))
+    p += facet_grid("sel~op_type", scales=esc('free'))
+    p += axis_labels("|T2| (log)", "Relative\nOverhead (log)", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100, 1000],labels=list(map(esc, ['1K', '10K', '100K', '1M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("micro_overhead_10M_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
+
+
+
+
+
+# for each query,
+data = pd.read_csv('eval_results/lineage_ops_4_9_2023_with_rand_and_skew.csv')
+ops = {
+    'groupby',
+    'filter',
+    'perfgroupby',
+    'hashjoin',
+    'mergejoin',
+    'nljoin',
+    'simpleagg',
+    'orderby',
+}
+order_map = {
+    'simpleagg': 'Simple Agg',
+    'orderby': 'Order By',
+    'filter': 'Filter',
+    'groupby': 'Group By',
+    'perfgroupby': 'Perfect GrpBy',
+    'nljoin': 'NL Join',
+    'mergejoin': 'Merge Join',
+    'hashjoin': 'Hash Join',
+}
+category = {
+    'simpleagg': 'agg',
+    'orderby': 'misc',
+    'filter': 'misc',
+    'groupby': 'agg',
+    'perfgroupby': 'agg',
+    'nljoin': 'Join',
+    'mergejoin': 'Join',
+    'hashjoin': 'Join',
+}
+
+
+
+
+data = data[data['avg_parse_time'] != 0]
+data = data[data['oids'] == 1000]
+data['avg_duration'] = data['avg_duration'] - data['avg_parse_time'] # Subtract out parse time
+data = data[['oids', 'avg_duration', 'op']]
+data = data[data['op'].isin(ops)]
+data['category'] = data['op'].apply(category.get)
+data['op'] = data['op'].apply(order_map.get)
+data['avg_duration'] = data['avg_duration'].mul(1000)
+data = data.rename(columns={'oids': 'Queried_ID_Count', 'avg_duration': 'Runtime'})
+postfix = """   
+data$op = factor(data$op, levels=c("Filter", "Order By", "Simple Agg", "Group By", "Perfect GrpBy", "NL Join", "Merge Join", "Hash Join"))
 """
-d = { "bnl": "BNL", "merge": "Merge", "nl": "NL"}
-df = con.execute(template.format(where)).fetchdf()
-df['op_type'] = df['op_type'].apply(d.get)
-df['n2'] = df['n2'].apply(lambda v: v / 1000)
-print(df)
-p = ggplot(df, aes(x='n2', color='System', y='roverhead', linetype='overheadType', shape='System'))
-p += facet_grid("sel~op_type", scales=esc('free'))
-p += axis_labels("|T2| (log)", "Relative\nOverhead (log)", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100, 1000],labels=list(map(esc, ['1K', '10K', '100K', '1M']))))
-p += geom_line() + geom_point()
-p += legend_side
-ggsave("micro_overhead_10M_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
+p = ggplot(data, aes(x='op', y='Runtime', color='category', fill='category'))
+p += geom_bar(stat=esc('identity'), width=0.8)
+p += axis_labels("", "Runtime/oid (ms)", "discrete")
+#p += facet_wrap(".~category", scales=esc("free"))
+p += legend_none
+p += coord_flip()
+ggsave("lq_microbench.png", p, postfix=postfix, width=6, height=2, scale=0.8)
 
 

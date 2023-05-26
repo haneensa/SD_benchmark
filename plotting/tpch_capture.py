@@ -23,6 +23,7 @@ legend_bottom = legend + theme(**{
   #"legend.spacing": "unit(-.5, 'cm')"
 
 })
+legend_none = legend + theme(**{"legend.position": esc("none")})
 
 legend_side = legend + theme(**{
   "legend.position":esc("right"),
@@ -106,11 +107,11 @@ type3 = ['2', '4', '17', '20', '21', '22']
 
 def cat(qid):
     if qid in type1:
-        return "1. Joins + Aggregations"
+        return "1. Joins-Aggregations"
     elif qid in type2:
-        return "2. Uncorrelated sub-queries"
+        return "2. Uncorrelated subQs"
     else:
-        return "3. Correlated sub-queries"
+        return "3. Correlated subQs"
 df_withB["qtype"] = df_withB.apply(lambda x: cat(str(x['query'])), axis=1)
 class_list = type1
 class_list.extend(type2)
@@ -123,7 +124,7 @@ print(df_fcstats[df_fcstats['query'].isin(type3)].groupby(["sf", 'n_threads']).m
 
 print(df_fcstats[["sf", "n_threads", "query", "nchunks", "size"]].groupby(["sf", 'n_threads']).aggregate(["mean", "min", "max"]))
 for index, row in df_withB.iterrows():
-    if row["sf"] != 1:
+    if row["sf"] != 10:
         continue
     if (row["notes"] == "m18_copy"):
         continue
@@ -156,20 +157,55 @@ for index, row in df_fcstats.iterrows():
 y_axis_list = ["rel_overhead", "overhead"]
 header = ["Relative \nOverhead %", "Overhead (ms)"]
 for idx, y_axis in enumerate(y_axis_list):
-    p = ggplot(data, aes(x='qid', y=y_axis, color='system', fill='system', group='system', shape='system'))
-    p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-    p += axis_labels('Query', "{} [log]".format(header[idx]), "discrete", "log10")
+    p = ggplot(data, aes(x='qid', ymin=0, ymax=y_axis,  y=y_axis, color='system', fill='system', group='system', shape='system'))
+    #p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+    p += geom_point(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5, size=2)
+    p += geom_linerange(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+    p += axis_labels('Query', "{} (log)".format(header[idx]), "discrete", "log10", ykwargs=dict(breaks=[10, 1000, 100000], labels=list(map(esc, ['10', '1000', '100k']))))
     p += legend_bottom
     p += legend_side
-    p += facet_wrap("~qtype", scales=esc("free_x"))
+    p += facet_grid(".~qtype", scales=esc("free_x"), space=esc("free_x"))
     postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=9, height=2.5)
+    ggsave("tpch_{}.png".format(y_axis), p, postfix=postfix,  width=12, height=2.25, scale=0.8)
 
-queries_order = [""+str(x)+"" for x in range(1,23)]
-queries_order = ','.join(queries_order)
-p = ggplot(sd_data, aes(x='qid', y="size", fill="sf", group="sf"))
-p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
-p += axis_labels('Query', "Size (MB) [log]", "discrete", "log10") + coord_flip()
-p += legend_bottom
+
+
+
+sd_data = []
+print(df_fcstats[["sf", "n_threads", "query", "nchunks", "size"]].groupby(["sf", 'n_threads']).aggregate(["mean", "min", "max"]))
+for index, row in df_withB.iterrows():
+    if (row["notes"] == "m18_copy"):
+        continue
+    if row['lineage_type'] != "SD_Capture": continue
+    name = "SD"
+    sf = int(row['sf'])
+    qtype = row['qtype']
+    notes = row['notes']
+    over = row['overhead']
+    rel_over = row['rel_overhead']
+    qid = str(row['query'])
+    sd_data.append(dict(sf=sf, qtype=qtype, system=name, notes=notes, overhead=over, rel_overhead=rel_over, qid=qid))
+
+
+
+
+p = ggplot(sd_data, aes(x='sf', ymin=0, ymax='rel_overhead',  y='rel_overhead', color='qtype',  group='qid', shape='qtype'))
+#p += geom_smooth()
+p += geom_point() + geom_line()
+p += axis_labels('Scale Factor', 'Relative\nOverhead (log)', "continuous", "continuous")#, ykwargs=dict(breaks=[10, 1000, 100000], labels=list(map(esc, ['10', '1000', '100k']))))
+p += legend_none
+p += facet_grid(".~qtype", scales=esc("free_x"), space=esc("free_x"))
 postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
-ggsave("tpch_metrics.png", p, postfix=postfix,  width=2.5, height=4)
+ggsave("tpch_reloverhead_sd_varysf.png".format(y_axis), p, postfix=postfix,  width=6, height=2.25, scale=0.8)
+
+
+
+if 0:
+    queries_order = [""+str(x)+"" for x in range(1,23)]
+    queries_order = ','.join(queries_order)
+    p = ggplot(sd_data, aes(x='qid', y="size", fill="sf", group="sf"))
+    p += geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5)
+    p += axis_labels('Query', "Size (MB) [log]", "discrete", "log10") + coord_flip()
+    p += legend_bottom
+    postfix = """data$qid= factor(data$qid, levels=c({}))""".format(queries_order)
+    ggsave("tpch_metrics.png", p, postfix=postfix,  width=2.5, height=4)
