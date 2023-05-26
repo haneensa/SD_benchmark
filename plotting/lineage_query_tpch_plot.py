@@ -1,10 +1,9 @@
 import pandas as pd
 from pygg import *
+import duckdb
 
 smokedduck = pd.read_csv('tpch_sf1_2_28_2023_2.csv')
 logical_rid = pd.read_csv('tpch_bw_notes_mar1_sf1_lineage_type_Logical-RID.csv')
-print(smokedduck)
-print(logical_rid)
 
 smokedduck = smokedduck[['queryId', 'avg_duration']]
 smokedduck['system'] = ['SD_Query' for _ in range(len(smokedduck))]
@@ -16,33 +15,52 @@ data['query'] = data['query'].astype('str')
 data['runtime'] = data['runtime'].mul(1000)
 data = data.rename(columns={'query': 'Query', 'runtime': 'Runtime'})
 
-print(data)
-
+# Source Sans Pro Light
 legend = theme_bw() + theme(**{
-    "legend.background": element_blank(), #element_rect(fill=esc("#f7f7f7")),
-    # "legend.justification":"c(1,0)",
-    "legend.position":"c(-0.08,-0.12)",
-    "legend.key" : element_blank(),
-    "legend.title":element_blank(),
-    "text": element_text(colour = "'#333333'", size=8, family = "'Arial'"),
-    "axis.text": element_text(colour = "'#333333'", size=8),
-    # "plot.background": element_blank(),
-    # "panel.border": element_rect(color=esc("#e0e0e0")),
-    # "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
-    "strip.text": element_text(color=esc("#333333")),
-    # "legend.position": esc("top"),
-    "legend.margin": margin(t = 0, r = 0, b = 0, l = 0, unit = esc("pt")),
-    "legend.text": element_text(colour = "'#333333'", size=6, family = "'Arial'"),
-    "legend.key.size": unit(6, esc('pt')),
+  "legend.background": element_blank(), #element_rect(fill=esc("#f7f7f7")),
+  "legend.justification":"c(1,0)", "legend.position":"c(1,0)",
+  "legend.key" : element_blank(),
+  "legend.title":element_blank(),
+  "text": element_text(colour = "'#333333'", size=11, family = "'Arial'"),
+  "axis.text": element_text(colour = "'#333333'", size=11),  
+  "plot.background": element_blank(),
+  "panel.border": element_rect(color=esc("#e0e0e0")),
+  "strip.background": element_rect(fill=esc("#efefef"), color=esc("#e0e0e0")),
+  "strip.text": element_text(color=esc("#333333"))
+  
+})
+# need to add the following to ggsave call:
+#    libs=['grid']
+legend_bottom = legend + theme(**{
+  "legend.position":esc("bottom"),
+  #"legend.spacing": "unit(-.5, 'cm')"
+
 })
 
-p = ggplot(data, aes(x='Query', y='Runtime', condition='system', color='system', fill='system', group='system')) \
-    + geom_bar(stat=esc('identity'), alpha=0.8, position=position_dodge(width=0.6), width=0.5) \
-    + scale_y_log10(name=esc("Runtime (log)"), breaks=[1, 10, 100, 1000], labels=[esc('1ms'), esc('10ms'), esc('100ms'), esc('1000ms')]) \
-    + scale_x_continuous(breaks=[i for i in range(1, 23)], minor_breaks='NULL') \
-    + legend
+legend_side = legend + theme(**{
+  "legend.position":esc("right"),
+  "legend.margin":"margin(t = 0, unit='cm')"
+})
+
+
+
+
+duckdb.register('data', data)
+data = duckdb.sql("""
+    select d1.Runtime as sd, d2.Runtime as logical, d1.Query::text as Query
+    from data d1, data d2
+    where d1.Query = d2.Query and d1.system <> d2.system
+    and d1.system = 'SD_Query'
+""").fetchdf()
+print(data)
+
+p = ggplot(data, aes(x='Query', ymin='sd', ymax='logical'))  #, condition='system', color='system', fill='system', group='system')) \
+p += geom_linerange(color=esc("gray")) 
+p += geom_point(aes(y='sd', color=esc('SD'), shape=esc("SD")))
+p += geom_point(aes(y='logical', color=esc('Logical'), shape=esc("Logical")))
+p += scale_colour_discrete(name=esc("System"))
+p += scale_shape_discrete(name=esc("System"))
+p += axis_labels("TPC-H Query", "Runtime (log)", "continuous", "log10", ykwargs=dict(breaks=[1, 10, 100, 1000], labels=[esc('1ms'), esc('10ms'), esc('100ms'), esc('1sec')]))
+p += legend_side
 ggsave("querying_tpch_sf1.png", p, width=4, height=1.5)
-# + scale_x_discrete(labels=[esc(f'{i}') for i in range(1, 23)]) \
-# + ggtitle(esc('TPC-H SF=1 Lineage Querying')) \
-# + axis_labels('Query', 'Runtime (log)', 'discrete', 'log10') \
 
