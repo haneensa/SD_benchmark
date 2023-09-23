@@ -29,6 +29,7 @@ print(args.profile)
 con = duckdb.connect(database=':memory:', read_only=False)
 prefix = "queries/q"
 table_name=None
+size_avg = 0.0
 if args.perm:
     prefix = "queries/perm/q"
     args.lineage_query = False
@@ -47,16 +48,16 @@ else:
 # threads: 1, 4, 8, 12, 16
 sf_list = [1]  
 threads_list = [1]#, 4, 8, 12, 16]
-opt_queries = [2, 4, 15, 16, 17, 20, 21, 22]
-dont_scale = [2, 4, 17, 20, 21]
+opt_queries = [2, 4, 15, 16, 17, 20, 21]
+dont_scale = [2, 4, 16, 17, 20, 21, 22]
 results = []
 for sf in sf_list:
     con.execute("CALL dbgen(sf="+str(sf)+");")
     for th_id in threads_list:
         con.execute("PRAGMA threads="+str(th_id))
-        con.execute("PRAGMA force_parallelism")
+        #con.execute("PRAGMA force_parallelism")
     
-        for i in range(22, 23):
+        for i in range(1, 23):
             if (args.opt == False and i in dont_scale): continue
             if (args.opt and i not in opt_queries): continue
             args.qid = i
@@ -79,9 +80,10 @@ for sf in sf_list:
             stats = ""
             if args.enable_lineage and args.stats:
                 lineage_size, nchunks, postprocess_time= getStats(con, query)
+                size_avg += lineage_size
                 stats = "{},{},{}".format(lineage_size, nchunks, postprocess_time*1000)
             results.append([i, avg, sf, args.repeat, lineage_type, th_id, output_size, stats, args.notes])
-
+print("average", size_avg/22.0)
 if args.save_csv:
     filename="tpch_benchmark_capture_{}.csv".format(args.notes)
     print(filename)

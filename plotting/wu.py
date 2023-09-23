@@ -38,9 +38,9 @@ legend_side = legend + theme(**{
 def mktemplate(overheadType, prefix, table):
     return f"""
     SELECT '{overheadType}' as overheadType, 
-            (n1/1000000)::int as n1, n2, sel, p, skew, groups as g,
-           index_join, lineage_type as System, query as op_type,
-           greatest(0, {prefix}overhead) as overhead, greatest(0, {prefix}rel_overhead) as roverhead
+            (n1)::int as n1, n2, sel, ncol, skew, groups as g, output,
+           index_join,  lineage_type as System, query as op_type,
+           greatest(0, {prefix}overhead) as overhead, greatest(0, {prefix}roverhead) as roverhead
     FROM {table}"""
  
 #    {mktemplate('Materialize', 'mat_', 'micro_sd_metrics')}
@@ -51,106 +51,215 @@ def mktemplate(overheadType, prefix, table):
 con = get_db()
 template = f"""
   WITH data as (
-    {mktemplate('Total', '', 'micro_sd_metrics')}
+    {mktemplate('Total', 'plan_all_', 'micro_sd_metrics')}
     UNION ALL
-    {mktemplate('Materialize', 'mat_', 'micro_perm_metrics')}
+    {mktemplate('Materialize', 'plan_mat_', 'micro_sd_metrics')}
     UNION ALL
-    {mktemplate('Execute', 'exec_', 'micro_perm_metrics')}
+    {mktemplate('Execute', 'plan_execution_', 'micro_sd_metrics')}
     UNION ALL
-    {mktemplate('Total', '', 'micro_perm_metrics')}
+    {mktemplate('Materialize', 'plan_mat_', 'micro_perm_metrics')}
+    UNION ALL
+    {mktemplate('Execute', 'plan_execution_', 'micro_perm_metrics')}
+    UNION ALL
+    {mktemplate('Total', 'plan_all_', 'micro_perm_metrics')}
   ) SELECT * FROM data {"{}"} ORDER BY overheadType desc """
 
 
-
-if 0:
-    where = "WHERE overheadType <> 'Execute' AND op_type IN ('scan','orderby')"
+execute = "op_exec"
+if 1:
+    where = f"WHERE overheadType <> '{execute}' AND op_type IN ('SEQ','ORDER_BY')"
     df = con.execute(template.format(where)).fetchdf()
+    print(df)
     df['op_type'] = df['op_type'].apply(lambda x: x.capitalize())
-    df['p'] = df['p'].apply(int)
-    p = ggplot(df, aes(x='p', color='System', y='roverhead', linetype='overheadType', shape='System')) 
+    df['ncol'] = df['ncol'].apply(int)
+    p = ggplot(df, aes(x='ncol', color='system', y='roverhead', linetype='overheadtype', shape='system')) 
     p += facet_grid("op_type~n1", labeller="labeller(n1=function(x)paste(x,'M', sep=''))")
     p += axis_labels("# Cols", "Relative\nOverhead %", ykwargs=dict(breaks=[0,100,200]), xkwargs=dict(breaks=[1,5,10], labels=list(map(esc,['1','5','10']))))
     p += geom_line() + geom_point()
     p += legend_side
-    ggsave("micro_overhead_line_scanorderby.png", p, width=6, height=2.5, scale=0.8)
+    ggsave("figures/micro_overhead_line_scanorderby.png", p, width=6, height=2.5, scale=0.8)
 
-
-    where = """
-    WHERE overheadType <> 'Execute' AND op_type IN ('filter','filter_scan') AND 
-    n1=10 and p=11
+    where = f"""
+    WHERE overheadType <> '{execute}' AND op_type IN ('FILTER','SEQ_SCAN') AND 
+    n1=10000000 and ncol=8
     """
     df = con.execute(template.format(where)).fetchdf()
     df['op_type'] = df['op_type'].apply(lambda x: ' '.join([w.capitalize() for w in x.split('_')]))
-    p = ggplot(df, aes(x='sel', color='System', y='roverhead', linetype='overheadType', shape='System'))
+    df['op_type'] = df['op_type'].apply(lambda x: "Filter Scan" if x=="Seq Scan" else "Filter")
+    p = ggplot(df, aes(x='sel', color='system', y='roverhead', linetype='overheadtype', shape='system'))
     p += facet_grid(".~op_type", labeller="labeller(n1=function(x)paste('Card: ',x,'M',sep=''))")
     p += axis_labels("Selectivity", "Relative\nOverhead %", xkwargs=dict(labels=list(map(esc, ['0', '.25', '.5', '.75', '1']))))
     p += geom_line() + geom_point()
     p += legend_side
-    ggsave("micro_overhead_line_filter.png", p, width=6, height=2, scale=0.8)
-
-
-    where = """ WHERE
-      overheadType <> 'Execute' AND op_type = 'index_join_pkfk' ANd
-      n1 = 10 AND n2=1000
-    """
-    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
-    df = con.execute(template.format(where)).fetchdf()
-    df['index_join'] = df['index_join'].apply(d.get)
-    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
-    p = ggplot(df, aes(x='sel', color='System', y='roverhead', linetype='overheadType', shape='System'))
-    p += facet_grid("index_join~skew", scales=esc('free'))
-    p += axis_labels("Selectivity", "Relative\nOverhead %", xkwargs=dict(labels=list(map(esc, ['0', '.25', '.5', '.75', '1']))))
-    p += geom_line() + geom_point()
-    p += legend_side
-    ggsave("micro_overhead_10M_1k_line_indexJoin.png", p, width=6, height=2.75, scale=0.8)
+    ggsave("figures/wu_micro_overhead_line_filter.png", p, width=6, height=2, scale=0.8)
 
 
 
-    where = """ WHERE
-      overheadType <> 'Execute' AND op_type = 'hash_join_pkfk' ANd
-      n1 = 10 AND n2=1000
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'HASH_GROUP_BY' and n1 in (1000000, 10000000)
     """
     d = { "Q_P": "PK-Only", "Q_P,F": "PKFK"}
     df = con.execute(template.format(where)).fetchdf()
-    df['index_join'] = df['index_join'].apply(d.get)
-    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
-    p = ggplot(df, aes(x='sel', color='System', y='roverhead', linetype='overheadType', shape='System'))
-    p += facet_grid(".~skew", scales=esc('free'))
-    p += axis_labels("Selectivity", "Relative\nOverhead %", xkwargs=dict(labels=list(map(esc, ['.2', '.4', '.6', '.8', '1']))))
-    p += geom_line() + geom_point()
-    p += legend_side
-    ggsave("micro_overhead_10M_1k_line_hashJoin.png", p, width=6, height=2, scale=0.8)
-
-
-    where = """ WHERE
-      overheadType <> 'Execute' AND op_type = 'reg_agg' and n1 in (1, 10)
-    """
-    d = { "Q_P": "PK-Only", "Q_P,F": "PKFK"}
-    df = con.execute(template.format(where)).fetchdf()
-    p = ggplot(df, aes(x='g', color='System', y='roverhead', linetype='overheadType', shape='System'))
+    p = ggplot(df, aes(x='g', color='system', y='roverhead', linetype='overheadtype', shape='system'))
     p += facet_grid(".~n1", scales=esc('free'),
                     labeller="labeller(n1=function(x)paste('# Tuples:',x,'M',sep=''))")
     p += axis_labels("# Groups (g)", "Relative\nOverhead (log)", "log10", "log10")
     p += geom_line() + geom_point()
     p += legend_side
-    ggsave("micro_overhead_10M_line_reg_agg.png", p, width=6, height=2, scale=0.8)
+    ggsave("figures/wu_micro_overhead_10M_line_reg_agg.png", p, width=6, height=2, scale=0.8)
 
-    where = """ WHERE
-      overheadType <> 'Execute' AND op_type in ('nl', 'merge', 'bnl')  
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')  
     """
-    d = { "bnl": "BNL", "merge": "Merge", "nl": "NL"}
+    d = { "BLOCKWISE_NL_JOIN": "BNL", "PIECEWISE_MERGE_JOIN": "Merge", "NESTED_LOOP_JOIN": "NL"}
     df = con.execute(template.format(where)).fetchdf()
     df['op_type'] = df['op_type'].apply(d.get)
     df['n2'] = df['n2'].apply(lambda v: v / 1000)
-    print(df)
-    p = ggplot(df, aes(x='n2', color='System', y='roverhead', linetype='overheadType', shape='System'))
+    p = ggplot(df, aes(x='n2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
     p += facet_grid("sel~op_type", scales=esc('free'))
     p += axis_labels("|T2| (log)", "Relative\nOverhead (log)", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100, 1000],labels=list(map(esc, ['1K', '10K', '100K', '1M']))))
     p += geom_line() + geom_point()
     p += legend_side
-    ggsave("micro_overhead_10M_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
+    ggsave("figures/wu_micro_overhead_all_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
+    
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')  
+      and n2=1000000
+    """
+    d = { "BLOCKWISE_NL_JOIN": "BNL", "PIECEWISE_MERGE_JOIN": "Merge", "NESTED_LOOP_JOIN": "NL"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['op_type'] = df['op_type'].apply(d.get)
+    #df['n2'] = df['n2'].apply(lambda v: v / 1000)
+    p = ggplot(df, aes(x='sel', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("~op_type", scales=esc('free'))
+    p += axis_labels("Selectivity", "Relative\nOverhead (log)", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100, 1000],labels=list(map(esc, ['1K', '10K', '100K', '1M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_10M_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
+    
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')  
+      and sel=0.5
+    """
+    d = { "BLOCKWISE_NL_JOIN": "BNL", "PIECEWISE_MERGE_JOIN": "Merge", "NESTED_LOOP_JOIN": "NL"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['op_type'] = df['op_type'].apply(d.get)
+    df['n2'] = df['n2'].apply(lambda v: v / 1000)
+    p = ggplot(df, aes(x='n2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("~op_type", scales=esc('free'))
+    p += axis_labels("|T2| (log)", "Relative\nOverhead (log)", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100, 1000],labels=list(map(esc, ['1K', '10K', '100K', '1M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_sel0.5_line_ineqjoin.png", p, width=7, height=4, scale=0.8)
 
 
+
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'INDEX_JOIN' ANd
+      n2=10000
+    """
+    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    df['n1'] = df['n1'].apply(lambda v: v / 1000000)
+    p = ggplot(df, aes(x='n1', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("index_join~skew", scales=esc('free'))
+    p += axis_labels("|N1|", "Relative\nOverhead %", xkwargs=dict(breaks=[1, 5, 10],labels=list(map(esc, ['1M', '5M', '10M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_g10k_line_indexJoin.png", p, width=6, height=2.75, scale=0.8)
+
+
+
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'HASH_JOIN' ANd
+      n2=10000
+    """
+    d = { "Q_P": "PK-Only", "Q_P,F": "PKFK"}
+    df = con.execute(template.format(where)).fetchdf()
+    print(df)
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    df['n1'] = df['n1'].apply(lambda v: v / 1000000)
+    p = ggplot(df, aes(x='n1', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid(".~skew", scales=esc('free'))
+    p += axis_labels("|N1|", "Relative\nOverhead %", xkwargs=dict(breaks=[1, 5, 10],labels=list(map(esc, ['1M', '5M', '10M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_g10k_line_hashJoin.png", p, width=6, height=2, scale=0.8)
+
+
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'INDEX_JOIN_mtm'
+    """
+    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    df['n1'] = df['n1'].apply(lambda v: v/10000)
+    df['sel2'] = df["output"]
+    p = ggplot(df, aes(x='sel2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("index_join~skew~n1", scales=esc('free'))
+    p += axis_labels("|output|", "Relative\nOverhead %", "log10", "log10", xkwargs=dict(breaks=[1, 10, 100],labels=list(map(esc, ['10K', '100K', '1M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_all_line_indexJoin_mtm.png", p, width=6, height=10, scale=0.8)
+    
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'INDEX_JOIN_mtm' and n1=100000 and skew=1
+    """
+    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    df['n1'] = df['n1'].apply(lambda v: v/10000)
+    df['sel2'] = df["output"]
+    df['sel2'] = df['sel2'].apply(lambda v: v/10000)
+    print(df['sel2'])
+    p = ggplot(df, aes(x='sel2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("~index_join", scales=esc('free'))
+    p += axis_labels("|output|", "Relative\nOverhead %", "continuous", "log10", xkwargs=dict(breaks=[10, 20, 30, 40],labels=list(map(esc, ['100M', '200M', '300M', '400M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_sel_line_indexJoin_mtm.png", p, width=6, height=2.75, scale=0.8)
+    
+    ###### Hash Join M:N, x-axis: g ordered by output size
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'HASH_JOIN_mtm'
+    """
+    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['n1'] = df['n1'].apply(lambda v: v/10000)
+    print(df["skew"])
+    df['sel2'] = df["output"]
+    p = ggplot(df, aes(x='sel2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("n1~skew", scales=esc('free'))
+    p += axis_labels("|N1|", "Relative\nOverhead %")
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_all_line_hash_joinJoin_mtm.png", p, width=6, height=2.75, scale=0.8)
+    
+    ###### Hash Join M:N, N1=1M and skew=1. x-axis: output size
+    where = f""" WHERE
+      overheadType <> '{execute}' AND op_type = 'HASH_JOIN_mtm' and n1=1000000 and skew=1
+    """
+    d = { "Q_P": "P-Only", "Q_P,F": "P&F"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['sel2'] = df["output"]
+    df['n1'] = df['n1'].apply(lambda v: v/10000)
+    df['sel2'] = df['sel2'].apply(lambda v: v/10000000)
+    print(df["sel2"])
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    print(df["skew"])
+    p = ggplot(df, aes(x='sel2', color='system', y='roverhead', linetype='overheadtype', shape='system'))
+    p += facet_grid("~skew")
+    p += axis_labels("|output|", "Relative\nOverhead %", xkwargs=dict(breaks=[10, 20, 30, 40],labels=list(map(esc, ['100M', '200M', '300M', '400M']))))
+    p += geom_line() + geom_point()
+    p += legend_side
+    ggsave("figures/wu_micro_overhead_sel_line_hash_joinJoin_mtm.png", p, width=6, height=2.75, scale=0.8)
 
 
 
@@ -208,6 +317,6 @@ p += axis_labels("", "Runtime/oid (ms)", "discrete")
 #p += facet_wrap(".~category", scales=esc("free"))
 p += legend_none
 p += coord_flip()
-ggsave("lq_microbench.png", p, postfix=postfix, width=6, height=2, scale=0.8)
+ggsave("figures/lq_microbench.png", p, postfix=postfix, width=6, height=2, scale=0.8)
 
 

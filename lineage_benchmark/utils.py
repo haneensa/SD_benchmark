@@ -4,25 +4,30 @@ import sys
 import pandas as pd
 import numpy as np
 import os.path
+import json
 
 def getStats(con, q):
-    q_list = "select * from queries_list"
-    query_info = con.execute(q_list).fetchdf()
-    #q_list = "select * from queries_list where query='{}'".format(q)
-    query_info = con.execute(q_list).fetchdf()
+    print(q)
+    q_list = "select * from duckdb_queries_list() where query = ? order by query_id desc limit 1"
+    query_info = con.execute(q_list, [q]).fetchdf()
+    print(query_info)
     n = len(query_info)-1
     print("Query info: ", query_info.loc[n])
     query_id = query_info.loc[n, 'query_id']
-    lineage_size = query_info.loc[n, 'lineage_size']
+    lineage_size = query_info.loc[n, 'size_bytes_max']
+    lineage_size = lineage_size/(1024*1024)
+    lineage_count = query_info.loc[n, 'size_bytes_min']
     nchunks = query_info.loc[n, 'nchunks']
     postprocess_time = query_info.loc[n, 'postprocess_time']
 
-    return lineage_size, nchunks, postprocess_time
+    return lineage_size, lineage_count, nchunks, postprocess_time
 def execute(Q, con, args):
     Q = " ".join(Q.split())
     if args.enable_lineage:
+        #con.execute("PRAGMA trace_lineage='ON'")
         con.execute("PRAGMA trace_lineage='ON'")
     if args.profile:
+        #con.execute("PRAGMA enable_profiling")
         con.execute("PRAGMA enable_profiling='json'")
         con.execute("PRAGMA profiling_output='{}_plan.json';".format(args.qid))
     start = timer()
@@ -32,15 +37,15 @@ def execute(Q, con, args):
         con.execute("PRAGMA disable_profiling;")
     if args.enable_lineage:
         con.execute("PRAGMA trace_lineage='OFF'")
-        con.execute("PRAGMA clear_lineage")
+        #con.execute("PRAGMA trace_lineage='OFF'")
     return df, end - start
 
 def DropLineageTables(con):
-    con.execute("DELETE FROM queries_list")
     tables = con.execute("PRAGMA show_tables").fetchdf()
     for index, row in tables.iterrows():
         if row["name"][:7] == "LINEAGE":
             con.execute("DROP TABLE "+row["name"])
+    con.execute("PRAGMA clear_lineage")
 
 def Run(q, args, con, table_name=None):
     dur_acc = 0.0
@@ -48,7 +53,7 @@ def Run(q, args, con, table_name=None):
     for j in range(args.repeat-1):
         df, duration = execute(q, con, args)
         dur_acc += duration
-        if args.enable_lineage:
+        if args.enable_lineage and args.stats==False:
             DropLineageTables(con)
         if table_name:
             con.execute("drop table {}".format(table_name))
@@ -127,8 +132,15 @@ def MicroDataZipfan(folder, groups, cardinality, max_val, a_list):
                 filename = folder+"zipfan_g"+str(g)+"_card"+str(card)+"_a"+str(a)+".csv"
                 if not os.path.exists(filename):
                     print("generate file: ", filename)
-                    z = ZipfanGenerator(g, a, card)
-                    zipfan = z.getAll()
+                    if a == 0:
+                        zipfan = [random.randint(0, g-1) for _ in range(card)]
+                    else:
+                        z = ZipfanGenerator(g, a, card)
+                        zipfan = z.getAll()
+                    unique_elements, counts = np.unique(zipfan, return_counts=True)
+                    print(f"g={g}, card={card}, a={a}, len={len(zipfan)}")
+                    print("1. ", len(unique_elements), unique_elements[:10], unique_elements[len(unique_elements)-10:])
+                    print("2. ", counts[:10], counts[len(counts)-10:])
                     vals = np.random.uniform(0, max_val, card)
                     idx = list(range(0, card))
                     df = pd.DataFrame({'idx':idx, 'z': zipfan, 'v': vals})
