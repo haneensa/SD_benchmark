@@ -21,6 +21,7 @@ def getStats(con, q):
     postprocess_time = query_info.loc[n, 'postprocess_time']
 
     return lineage_size, lineage_count, nchunks, postprocess_time
+
 def execute(Q, con, args):
     Q = " ".join(Q.split())
     if args.enable_lineage:

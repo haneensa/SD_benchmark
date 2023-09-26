@@ -1,5 +1,5 @@
 create table lineage as (
-  SELECT groups.*, o_orderkey, l_orderkey,o_rid, l_rid, l_commitdate, l_receiptdate
+  SELECT groups.*, o_rid, l_rid
   FROM (
     SELECT o_orderpriority, count(*) AS order_count
     FROM (

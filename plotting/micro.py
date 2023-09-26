@@ -326,7 +326,9 @@ detailed_template = """
             plan_mat_roverhead as p_m_ro,
             
             op_all_roverhead as op_a_ro,
-            plan_all_roverhead as p_a_ro
+            plan_all_roverhead as p_a_ro,
+            lineage_size, lineage_count, nchunks,
+            postprocess, postprocess_roverhead
 """
 #avg(op_all_overhead) as o_a_o, avg(op_all_roverhead) as o_a_ro,
 #avg(op_execution_overhead) as o_e_o, avg(op_execution_roverhead) as o_e_ro,
@@ -343,37 +345,43 @@ summary_template = """
         max(plan_mat_roverhead) as maxp_m_ro,
         
         min(plan_execution_roverhead) as minp_e_ro,
-        min(plan_mat_roverhead) as minp_m_ro
+        min(plan_mat_roverhead) as minp_m_ro,
+        avg(postprocess) as post, avg(postprocess_roverhead) as post_rov, avg(nchunks) as  nch, avg(lineage_count) as lcnt
 """
 
 header_unique = ["query", "n1", "n2", "skew", "ncol", "sel", "groups",  "index_join"]
 g = ','.join(header_unique)
 
-def summary(con, q, select):
-    print(f"*** detailed: {q}\n", con.execute(f"""select lineage_type, {select},
-        {detailed_template}
-        from micro_sd_metrics where query='{q}'
-        UNION 
-        select lineage_type, {select},
-        {detailed_template}
-        from micro_perm_metrics where query='{q}' 
-        order by lineage_type, {select}
-        """).fetchdf().to_string())
+def summary(con, q, select, detailed=False):
+    print("#####################")
+    if detailed:
+        print(f"*** detailed: {q}\n", con.execute(f"""select lineage_type, {select},
+            {detailed_template}
+            from micro_sd_metrics where query='{q}'
+            UNION 
+            select lineage_type, {select},
+            {detailed_template}
+            from micro_perm_metrics where query='{q}' 
+            order by lineage_type, {select}
+            """).fetchdf().to_string())
 
 
     print(f"*** summary {q}\n", con.execute(f"""select index_join,
         {summary_template}
         from micro_sd_metrics where query='{q}'
-        GROUP BY index_join
+        GROUP BY index_join, lineage_type
         """).fetchdf())
-    print(f"*** summary {q}\n", con.execute(f"""select index_join,
+    print(f"*** summary {q}\n", con.execute(f"""select index_join, lineage_type,
         {summary_template}
         from micro_perm_metrics where query='{q}'
-        GROUP BY index_join
+        GROUP BY index_join, lineage_type
         """).fetchdf())
     
-    print(f"*** summary {q}\n", con.execute(f"""select index_join,
+    print(f"*** summary {q}\n", con.execute(f"""select index_join,perm.lineage_type,
         avg(sd.plan_all_roverhead) as sd_capture, avg(perm.plan_all_roverhead) as perm_capture,
+        avg(sd.plan_execution_roverhead) as sd_e, avg(perm.plan_execution_roverhead) as perm_e,
+        avg(sd.plan_mat_roverhead) as sd_mat, avg(perm.plan_mat_roverhead) as perm_mat,
+        (avg(sd.plan_mat_roverhead)/avg(perm.plan_all_roverhead))*100 as sd_mal, (avg(perm.plan_mat_roverhead)/avg(perm.plan_all_roverhead))*100 as perm_mal,
         avg(perm.plan_all_roverhead) / avg(sd.plan_all_roverhead) as speedup,
         
         avg(sd.plan_all_overhead) as osd_capture, avg(perm.plan_all_overhead) as operm_capture,
@@ -381,7 +389,7 @@ def summary(con, q, select):
         from micro_perm_metrics as perm
         JOIN micro_sd_metrics as sd USING ({g}) 
         where query='{q}'
-        GROUP BY index_join
+        GROUP BY index_join, perm.lineage_type
         """).fetchdf())
 con = get_db()
 
@@ -393,14 +401,18 @@ con = get_db()
 #plot_ineq_joins(con)
 #plot_hash_join()
 #plot_hash_join_mtm(con)
-plot_aggs(con)
+#plot_aggs(con)
 
 ######### Summary
-#summary(con, "SEQ")
-#summary(con, "ORDER_BY")
-#summary(con, "FILTER", "n1, sel, ncol")
-#summary(con, "SEQ_SCAN")
-#summary(con, "INDEX_JOIN_mtm")
-#summary(con, "HASH_JOIN_mtm")
-#for op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN', "CROSS_PRODUCT"):
-#    summary(con, op_type)
+summary(con, "HASH_JOIN", "n1, n2, skew, groups", True)
+summary(con, "HASH_JOIN_mtm", "n1, n2, skew, groups", True)
+summary(con, "INDEX_JOIN", "n1, n2, skew, groups")
+summary(con, "INDEX_JOIN_mtm", "n1, n2, skew, groups")
+for op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN', "CROSS_PRODUCT"):
+    summary(con, op_type, "n1, sel")
+summary(con, "HASH_GROUP_BY", "n1, groups")
+summary(con, "PERFECT_HASH_GROUP_BY", "n1, groups")
+summary(con, "FILTER", "n1, sel, ncol")
+summary(con, "SEQ_SCAN", "n1, sel, ncol")
+summary(con, "SEQ", "n1, ncol")
+summary(con, "ORDER_BY", "n1, ncol")

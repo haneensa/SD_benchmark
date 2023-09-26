@@ -122,8 +122,17 @@ def preprocess(con, result_file):
     df_stats.loc[:, "op_runtime"] = -1
     df_stats.loc[:, "mat_time"] = -1
     df_stats.loc[:, "plan_runtime"] = -1
+    
+    df_stats.loc[:, "lineage_size"] = df_stats.apply(lambda x: x['stats'].split(",")[0], axis=1)
+    df_stats.loc[:, "lineage_count"] = df_stats.apply(lambda x: x['stats'].split(",")[1], axis=1)
     df_stats.loc[:, "nchunks"] = df_stats.apply(lambda x: x['stats'].split(",")[2], axis=1)
-    df_data.loc[:, "nchunks"] = df_stats.apply(lambda x: 0, axis=1)
+    df_stats.loc[:, "postprocess"] = df_stats.apply(lambda x: x['stats'].split(",")[3], axis=1)
+
+    df_data.loc[:, "lineage_size"] = df_data.apply(lambda x: 0, axis=1)
+    df_data.loc[:, "lineage_count"] = df_data.apply(lambda x: 0, axis=1)
+    df_data.loc[:, "nchunks"] = df_data.apply(lambda x: 0, axis=1)
+    df_data.loc[:, "postprocess"] = df_data.apply(lambda x: 0, axis=1)
+    
     for df in [df_data, df_stats]:
         df.loc[:, "index_scan"] = df.apply(lambda x: unify_bool_type(x), axis=1)
         df.loc[:, "index_join"] = df.apply(lambda x: get_index_join_qtype(x), axis=1)
@@ -131,7 +140,7 @@ def preprocess(con, result_file):
     df_final = df_data
     df_final = df_final.append(df_stats)
 
-    metrics = ["runtime", "output", "op_runtime", "mat_time", "plan_runtime", "nchunks"]
+    metrics = ["runtime", "output", "op_runtime", "mat_time", "plan_runtime", "nchunks", "lineage_size", "lineage_count", "postprocess"]
     header_unique = ["query", "n1", "n2", "skew", "ncol", "sel", "groups", "r", "index_join", "lineage_type"]
 
     header = header_unique + metrics
@@ -153,7 +162,11 @@ def preprocess(con, result_file):
     # op_runtime: runtime of the specific physical operator 'query'
     # mat_runtime: create table runtime
     print(con.execute("""create table avg_micro as
-                        select {}, max(output) as output, max(nchunks) as nchunks, avg(plan_runtime) as plan_runtime, avg(runtime) as runtime,
+                        select {}, max(output) as output,
+                                max(nchunks) as nchunks,
+                                max(lineage_size) as lineage_size, max(lineage_count) as lineage_count,
+                                max(postprocess) as postprocess,
+                                avg(plan_runtime) as plan_runtime, avg(runtime) as runtime,
                                 avg(output) as output, avg(op_runtime) as op_runtime, avg(mat_time) as mat_time from micro_test
                                 group by {}""".format(g, g)).fetchdf())
     df = con.execute(f"""select {g} from avg_micro order by n1, n2, groups, index_join""").fetchdf()
@@ -170,7 +183,8 @@ def preprocess(con, result_file):
                       (t2.plan_runtime-t2.mat_time) as plan_no_create,
                       t2.* from (select {g}, {m} from avg_micro where lineage_type='Baseline') as t1 join avg_micro as t2 using ({g})
                       """))
-    df = con.execute(f"""select {g}, lineage_type from micro_withBaseline order by n1, n2, groups, index_join""").fetchdf()
+    df = con.execute(f"""select {m}, {g}, lineage_type from micro_withBaseline order by n1, n2, groups, index_join""").fetchdf()
+    print(df)
     print(" *****>")
     print(df[df["query"]=="INDEX_JOIN_mtm"])
     """
@@ -193,7 +207,9 @@ def preprocess(con, result_file):
     #((plan_runtime-mat_time) - (base_plan_runtime-base_mat_time))*1000 as query_overhead,
     #((plan_runtime-mat_time) - (base_runtime-base_mat_time))/(base_runtime-base_mat_time)*1000 as query_roverhead,
     # calculate metrics for Perm
-    print(con.execute("""create table micro_perm_metrics as select {}, lineage_type, output, nchunks,
+    print(con.execute("""create table micro_perm_metrics as select {}, lineage_type, output,
+                                nchunks, lineage_size, lineage_count, postprocess,
+                                0 as postprocess_roverhead,
                                 (plan_no_create-base_plan_no_create)*1000 as plan_execution_overhead,
                                 ((plan_no_create-base_plan_no_create)/base_plan_no_create)*100 as plan_execution_roverhead,
                                 
@@ -233,7 +249,9 @@ def preprocess(con, result_file):
     # 4. plan_copy time (plan_execution) -- overhead on all operators except create_table for Perm and log.push_back()
     # 5. plan_mat time (plan_mat) -- overhead of materialization on all operators (SD spread, Perm create table)
     # 6. plan_full time (plan_all) -- overhead of create table and log.push_back()
-    con.execute("""create table micro_sd_metrics as select {}, 'SD' as lineage_type, sd_full.output, sd_full.nchunks,
+    con.execute("""create table micro_sd_metrics as select {}, 'SD' as lineage_type, sd_full.output,
+sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
+(sd_stats.postprocess / (sd_full.base_plan_no_create*1000)) as postprocess_roverhead,
 (sd_copy.plan_no_create-sd_copy.base_plan_no_create)*1000 as plan_execution_overhead,
 ((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100 as plan_execution_roverhead,
                                 
@@ -262,8 +280,10 @@ def preprocess(con, result_file):
 sd_full.output / sd_full.base_output as fanout
                          from (select * from micro_withBaseline where lineage_type='SD_copy') as sd_copy JOIN
                               (select * from micro_withBaseline where lineage_type='SD_full') as sd_full
+                              USING ({}) JOIN
+                              (select * from micro_withBaseline where lineage_type='SD_stats') as sd_stats
                               USING ({})
-                      """.format(g, g)).fetchdf()
+                      """.format(g, g, g)).fetchdf()
 
 def get_db():
     # check if micro.db exists, if not, then reconstruct the database
