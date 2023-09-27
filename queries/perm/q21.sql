@@ -37,4 +37,4 @@ CREATE TABLE lineage as (
           and cb_sub1.l_rid2=l4.rowid
         )
   )  using (s_name)
-)
+);

@@ -26,6 +26,4 @@ WHERE
     AND l_shipdate < l_commitdate
     AND l_receiptdate >= CAST('1994-01-01' AS date)
     AND l_receiptdate < CAST('1995-01-01' AS date)
-ORDER BY
-    l_shipmode
-)
+);

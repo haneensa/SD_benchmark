@@ -31,4 +31,4 @@ AND       EXISTS(
               OR NOT (Tplus.l_quantity < (SELECT  0.2 * avg(l4.l_quantity) FROM lineitem as l4 WHERE l4.l_partkey = Tplus.p_partkey))
           )
 
-)
+);

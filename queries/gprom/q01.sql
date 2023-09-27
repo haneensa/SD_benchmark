@@ -15,7 +15,4 @@ create table lineage as (
       lineitem
   WHERE
       l_shipdate <= CAST('1998-09-02' AS date)
-  ORDER BY
-      l_returnflag,
-      l_linestatus
-)
+);

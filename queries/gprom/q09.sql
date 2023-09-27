@@ -18,5 +18,4 @@ create table lineage as (
         AND o_orderkey = l_orderkey AND s_nationkey = n_nationkey
         AND p_name LIKE '%green%'
   )
-  ORDER BY nation, o_year DESC
-)
+);

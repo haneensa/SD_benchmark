@@ -14,7 +14,6 @@ CREATE TABLE lineage AS (
                 AND NOT EXISTS (SELECT * FROM orders WHERE o_custkey=c_custkey)
         )
         GROUP BY cntrycode
-        ORDER BY cntrycode
       ) as groups join (
         SELECT customer.rowid as customer_rowid_1, substring(c_phone FROM 1 FOR 2) AS cntrycode, c_custkey
         FROM customer
@@ -29,4 +28,4 @@ CREATE TABLE lineage AS (
       FROM customer
         WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
     ) as subq
-)
+);

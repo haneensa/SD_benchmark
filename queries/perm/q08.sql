@@ -34,6 +34,5 @@ create table lineage as (
               AND p_type = 'ECONOMY ANODIZED STEEL'
     )
     GROUP BY o_year
-    ORDER BY o_year
   ) as Qbase using (o_year)
-)
+);

@@ -65,4 +65,4 @@ CREATE TABLE lineage as (
               AND l_shipmode IN ('AIR', 'AIR REG')
               AND l_shipinstruct = 'DELIVER IN PERSON')
   ) as Qplus
-)
+);

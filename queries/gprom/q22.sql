@@ -14,9 +14,8 @@ CREATE TABLE lineage AS (
                 ))
                 AND NOT EXISTS (SELECT * FROM orders WHERE o_custkey=c_custkey)
         )
-        ORDER BY cntrycode
     ) as main, (select customer.rowid as customer_rowid_0
       FROM customer
         WHERE c_acctbal > 0.00 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
     ) as subq
-)
+);

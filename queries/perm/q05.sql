@@ -13,7 +13,6 @@ create table lineage as (
          AND o_orderdate < CAST('1995-01-01' AS date)
     )
     GROUP BY n_name
-    ORDER BY revenue DESC
   ) as Qbase join (
     SELECT customer.rowid as c_rid, orders.rowid as o_rid,
            lineitem.rowid as l_rid, supplier.rowid as s_rid,
@@ -26,4 +25,4 @@ create table lineage as (
        AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date)
        AND o_orderdate < CAST('1995-01-01' AS date)
   ) as Qplus using (n_name)
-)
+);

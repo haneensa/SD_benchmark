@@ -31,6 +31,5 @@ create table lineage as (
           AND CAST('1996-12-31' AS date)
     )
     GROUP BY supp_nation, cust_nation, l_year
-    ORDER BY supp_nation, cust_nation, l_year
   ) as Qbase using (supp_nation, cust_nation, l_year)
-)
+);

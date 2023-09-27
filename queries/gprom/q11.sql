@@ -13,4 +13,4 @@ create table lineage as (
         WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY')
     ) as subq
     where value > value_inner
-)
+);

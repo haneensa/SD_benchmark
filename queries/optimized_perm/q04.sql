@@ -12,7 +12,7 @@ create table lineage as (
                          and l_orderkey=o_orderkey
                       )
     )
-    GROUP BY o_orderpriority ORDER BY o_orderpriority
+    GROUP BY o_orderpriority
   ) as groups join (
     SELECT orders.rowid as o_rid, o_orderpriority, o_orderkey
     FROM orders
@@ -27,4 +27,4 @@ create table lineage as (
     FROM lineitem
     WHERE l_commitdate < l_receiptdate
   ) as exists_st on ( select_st.o_orderkey=exists_st.l_orderkey)
-)
+);

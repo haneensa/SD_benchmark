@@ -52,4 +52,4 @@ CREATE TABLE lineage as (
           and qbase_plus.s_suppkey=in1_plus.ps_suppkey
         )
 
-)
+);

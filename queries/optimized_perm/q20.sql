@@ -14,7 +14,6 @@ CREATE TABLE lineage as (
                               AND l_shipdate < CAST('1995-01-01' AS date)))
       AND s_nationkey = n_nationkey
       AND n_name = 'CANADA'
-    ORDER BY s_name
   ) as final, (
     SELECT partsupp.rowid as partsupp_rowid, ps_suppkey, ps_partkey
     FROM partsupp
@@ -38,4 +37,4 @@ CREATE TABLE lineage as (
   and in1.ps_partkey=in2.p_partkey
   and in3_select.l_partkey=in1.ps_partkey
   and in3_select.l_suppkey=in1.ps_suppkey
-)
+);

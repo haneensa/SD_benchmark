@@ -23,6 +23,5 @@ create table lineage as (
           AND p_name LIKE '%green%'
     )
     GROUP BY nation, o_year
-    ORDER BY nation, o_year DESC
   ) as Qbase using (nation, o_year)
-)
+);

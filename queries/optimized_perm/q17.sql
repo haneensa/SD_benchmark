@@ -33,4 +33,4 @@ CREATE TABLE lineage as (
                     l_partkey = p_partkey)
   ) as joins, lineitem
   where lineitem.l_partkey=joins.l_partkey
-)
+);

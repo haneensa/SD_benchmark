@@ -48,8 +48,4 @@ CREATE TABLE lineage as (
             ) where l_suppkey=supplier_no 
           ) as rev_plus 
      ) where Qplus.total_revenue=max_total_revenue
-    
-    
-)
-
-      
+);

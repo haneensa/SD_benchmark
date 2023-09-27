@@ -18,7 +18,6 @@ create table lineage as (
                         s_comment LIKE '%Customer%Complaints%')
         )
         GROUP BY p_brand, p_type, p_size
-        ORDER BY supplier_cnt DESC, p_brand, p_type, p_size
     ) as groups join (
       SELECT partsupp.rowid as partsupp_rowid, part.rowid as part_rowid, p_brand, p_type, p_size
       FROM partsupp, part
@@ -41,4 +40,4 @@ create table lineage as (
           WHERE
               s_comment LIKE '%Customer%Complaints%'
   ) as subq
-)
+);

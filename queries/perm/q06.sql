@@ -18,4 +18,4 @@ create table lineage as (
           AND l_quantity < 24
     )
   ) as Qbase
-)
+);

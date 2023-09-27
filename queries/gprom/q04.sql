@@ -10,10 +10,9 @@ create table lineage as (
                        WHERE l_commitdate < l_receiptdate
                          and l_orderkey=o_orderkey
                       )
-    ORDER BY o_orderpriority
   ) as select_st join (
     SELECT lineitem.rowid as l_rid, l_orderkey
     FROM lineitem
     WHERE l_commitdate < l_receiptdate
   ) as exists_st on ( select_st.o_orderkey=exists_st.l_orderkey)
-)
+);

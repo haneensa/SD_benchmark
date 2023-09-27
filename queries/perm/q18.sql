@@ -13,7 +13,6 @@ CREATE TABLE lineage as (
             AND c_custkey = o_custkey
             AND o_orderkey = l_orderkey
         GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
-        ORDER BY o_totalprice DESC, o_orderdate
   ) as q join  (
     select * from
     ( select *, customer.rowid as c_rid, 
@@ -28,4 +27,4 @@ CREATE TABLE lineage as (
           AND in_plus.c_custkey = in_plus.o_custkey
           AND in_plus.o_orderkey = in_plus.l_orderkey
   ) as qplus using (c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice)
-)
+);

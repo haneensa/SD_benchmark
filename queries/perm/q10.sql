@@ -25,4 +25,4 @@ create table lineage as (
     ORDER BY revenue DESC
     LIMIT 20
   ) as Qbase using (c_custkey, c_name, c_acctbal, c_phone, c_name, c_address, c_comment)
-)
+);

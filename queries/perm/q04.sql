@@ -7,7 +7,6 @@ create table lineage as (
       WHERE o_orderdate >= CAST('1993-07-01' AS date) AND o_orderdate < CAST('1993-10-01' AS date)
           AND EXISTS ( SELECT * FROM lineitem  WHERE l_orderkey = o_orderkey AND l_commitdate < l_receiptdate )
       GROUP BY o_orderpriority
-      ORDER BY o_orderpriority
     ) as qbase join (
       SELECT o_rid, cb.rowid as l_rid, o_orderpriority FROM
       ( SELECT *, orders.rowid as o_rid FROM orders 
@@ -26,4 +25,4 @@ create table lineage as (
             WHERE Qsub_plus.rowid=CB.rowid
           )
   ) AS qplus using (o_orderpriority)
-)
+);

@@ -13,7 +13,6 @@ create table lineage as (
             AND l_receiptdate < CAST('1995-01-01' AS date)
       )
       GROUP BY l_shipmode
-      ORDER BY l_shipmode
   ) as Qbase join (
     SELECT orders.rowid as orders_rowid, lineitem.rowid as lineitem_rowid, l_shipmode
     FROM orders, lineitem
@@ -22,4 +21,4 @@ create table lineage as (
         AND l_receiptdate >= CAST('1994-01-01' AS date)
         AND l_receiptdate < CAST('1995-01-01' AS date)
   ) as Qplus using (l_shipmode)
-)
+);

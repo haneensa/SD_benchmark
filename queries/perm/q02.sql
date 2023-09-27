@@ -49,4 +49,4 @@ WHERE
       AND Qsub_plus.n_rid3=cb.n_rid2
       AND Qsub_plus.r_rid3=cb.r_rid2
     )
-)
+);

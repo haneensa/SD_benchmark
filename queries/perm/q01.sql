@@ -18,4 +18,4 @@ create table lineage as (
     FROM lineitem
     WHERE l_shipdate <= CAST('1998-09-02' AS date)
   ) as Qplus using (l_returnflag, l_linestatus)
-)
+);

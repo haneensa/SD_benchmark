@@ -20,4 +20,4 @@ create table lineage as (
           AND l_shipdate < CAST('1995-10-01' AS date)
     )
   ) as Qbase
-)
+);

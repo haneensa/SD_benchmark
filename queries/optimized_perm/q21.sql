@@ -27,4 +27,4 @@ CREATE TABLE lineage as (
         AND n_name = 'SAUDI ARABIA'
   ) as joins using (s_name) join
   lineitem as l2 on (l2.l_orderkey = joins.l_orderkey AND l2.l_suppkey <> joins.l_suppkey)
-)
+);

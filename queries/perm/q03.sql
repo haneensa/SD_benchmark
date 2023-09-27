@@ -21,4 +21,4 @@ create table lineage as (
     ORDER BY revenue DESC, o_orderdate
     LIMIT 10
   ) as Qbase using (l_orderkey, o_orderdate, o_shippriority)
-)
+);

@@ -13,7 +13,6 @@ CREATE TABLE lineage AS (
               AND NOT EXISTS (  SELECT *  FROM orders  WHERE o_custkey = c_custkey)
       ) AS custsale
       GROUP BY cntrycode
-      ORDER BY cntrycode
   ) as Qbase join (
     SELECT * 
     FROM  (
@@ -35,4 +34,4 @@ CREATE TABLE lineage AS (
           )
         ) as Qsub_plus1
   ) as Qplus using (cntrycode)
-)
+);

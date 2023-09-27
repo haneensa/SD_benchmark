@@ -10,7 +10,6 @@ create table lineage as (
           WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY'
         )
         GROUP BY ps_partkey
-        ORDER BY value DESC
       ) as groups join (
         SELECT partsupp.rowid as partsupp_rowid, supplier.rowid as supplier_rowid, nation.rowid as nation_rowid,
                ps_partkey, ps_supplycost, ps_availqty
@@ -25,4 +24,4 @@ create table lineage as (
         WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'GERMANY')
     ) as subq
     where value > value_inner
-)
+);

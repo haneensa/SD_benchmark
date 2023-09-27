@@ -22,6 +22,5 @@ create table lineage as (
         GROUP BY c_custkey
     )
     GROUP BY c_count
-    ORDER BY custdist DESC, c_count DESC
   ) as groups2 using (c_count)
-)
+);

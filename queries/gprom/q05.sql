@@ -10,5 +10,4 @@ create table lineage as (
      AND s_nationkey = n_nationkey AND n_regionkey = r_regionkey
      AND r_name = 'ASIA' AND o_orderdate >= CAST('1994-01-01' AS date)
      AND o_orderdate < CAST('1995-01-01' AS date)
-  ORDER BY revenue DESC
-)
+);

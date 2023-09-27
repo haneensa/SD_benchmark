@@ -12,11 +12,9 @@ CREATE TABLE lineage as (
               where l_shipdate >= date '1996-01-01' and l_shipdate < date '1996-01-01' + interval '3' month
               group by  l_suppkey
             ) as revenue1)
-            ORDER BY s_suppkey
     )  as main, (
             SELECT lineitem.rowid as l_rid2
               FROM lineitem
               WHERE l_shipdate >= CAST('1996-01-01' AS date)  AND l_shipdate < CAST('1996-04-01' AS date)
     ) as where_clause
-)
-      
+);

@@ -33,6 +33,5 @@ create table lineage as (
           FROM partsupp, supplier, nation, region
           WHERE p_partkey = ps_partkey AND s_suppkey = ps_suppkey AND s_nationkey = n_nationkey
               AND n_regionkey = r_regionkey AND r_name = 'EUROPE')
-    ORDER BY s_acctbal DESC, n_name, s_name, p_partkey
   ) as joins2 on (group1.min_ps_supplycost=joins2.ps_supplycost)
-)
+);
