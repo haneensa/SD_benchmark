@@ -23,5 +23,4 @@ create table lineage as (
           AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
           AND CAST('1996-12-31' AS date)
     )
-    ORDER BY supp_nation, cust_nation, l_year
 )

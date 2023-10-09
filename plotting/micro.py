@@ -86,7 +86,7 @@ y_axis_list = ["roverhead", "overhead"]
 y_header = ["Relative\nOverhead %", "Overhead (ms)"]
 linetype = "overheadtype"
 def plot_scans(con):
-    where = f"WHERE op_type IN ('SEQ','ORDER_BY')"
+    where = f"WHERE overheadtype<>'Materialize' and op_type IN ('SEQ','ORDER_BY')"
     df = con.execute(template.format(where)).fetchdf()
     df['op_type'] = df['op_type'].apply(lambda x: x.capitalize())
     df['ncol'] = df['ncol'].apply(int)
@@ -103,7 +103,7 @@ def plot_scans(con):
 
 def plot_filters(con):
     where = f"""
-    WHERE op_type IN ('FILTER','SEQ_SCAN')
+    WHERE overheadtype<>'Materialize' and  op_type IN ('FILTER','SEQ_SCAN')
     """
     df = con.execute(template.format(where)).fetchdf()
 
@@ -135,7 +135,7 @@ def plot_filters(con):
     
     # plot Filters figure: 
     where = f"""
-    WHERE op_type IN ('FILTER','SEQ_SCAN') AND 
+    WHERE overheadtype<>'Materialize' and  op_type IN ('FILTER','SEQ_SCAN') AND 
     n1=10000000 and ncol=0
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -163,7 +163,7 @@ def plot_cross():
 def plot_ineq_joins(con):
     # joins inequiality
     d = { "BLOCKWISE_NL_JOIN": "BNL", "PIECEWISE_MERGE_JOIN": "Merge", "NESTED_LOOP_JOIN": "NL"}
-    where = f""" WHERE
+    where = f""" WHERE overheadtype<>'Materialize'  and
       op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')  
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -176,7 +176,7 @@ def plot_ineq_joins(con):
         fname, w, h = "micro_{}_line_ineq.png".format(y_axis), 8, 4
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
-    where = f""" WHERE
+    where = f""" WHERE overheadtype<>'Materialize' and 
       op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')
       and n2=1000000
     """
@@ -190,7 +190,7 @@ def plot_ineq_joins(con):
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
 def plot_index_join_mtm(con):
-    where = f""" WHERE op_type = 'INDEX_JOIN_mtm'
+    where = f""" WHERE op_type = 'INDEX_JOIN_mtm' and overheadtype<>'Materialize' 
     """
     d = { "Q_P": "T2-Only", "Q_P,F": "T1&T2"}
     df = con.execute(template.format(where)).fetchdf()
@@ -203,7 +203,7 @@ def plot_index_join_mtm(con):
         fname, w, h = "micro_{}_line_indexJoin_mtm.png".format(y_axis), 8, 10
         PlotLines(df,  x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
     
-    where = f""" WHERE
+    where = f""" WHERE overheadtype<>'Materialize' and 
       op_type = 'INDEX_JOIN_mtm' and n1=100000 and (skew=1 or skew=0)
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -217,31 +217,40 @@ def plot_index_join_mtm(con):
         fname, w, h = "micro_{}_line_100K_indexJoin_mtm.png".format(y_axis), 6, 2.75
         PlotLines(df,  x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
-def plot_index_join():
-    ps = ["Q_P,F", "Q_P"]
-    for p in ps:
-        for idx, y_axis in enumerate(y_axis_list):
-            x_axis, x_label, color, facet = "n1", "N1", "system", "~skew~index_join~g"
-            #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(y_header[idx])
-            x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(y_header[idx])
-            fname, w, h = "micro_{}_line_indexJoin.png".format(y_axis), 8, 10
+def plot_index_join(con):
+    where = f""" WHERE op_type = 'INDEX_JOIN_mtm' and overheadtype<>'Materialize' 
+    """
+    d = { "Q_P": "T2-Only", "Q_P,F": "T1&T2"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    df['skew'] = df['skew'].apply(lambda s: f"Skew: {s}")
+    for idx, y_axis in enumerate(y_axis_list):
+        x_axis, x_label, color, facet = "n1", "N1", "system", "~index_join~n2~skew"
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(y_header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(y_header[idx])
+        fname, w, h = "micro_{}_line_indexJoin.png".format(y_axis), 8, 10
 
-            PlotLines("INDEX_JOIN", true_function, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-            
-            lambda_function  = lambda x: x['n2']==1000 and x['index_join']==p
+        PlotLines(df,  x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
+    
+    where = f""" WHERE op_type = 'INDEX_JOIN_mtm' and overheadtype<>'Materialize' 
+    and n2=1000
+    """
+    d = { "Q_P": "T2-Only", "Q_P,F": "T1&T2"}
+    df = con.execute(template.format(where)).fetchdf()
+    df['index_join'] = df['index_join'].apply(d.get)
+    for idx, y_axis in enumerate(y_axis_list):
+        x_axis, x_label, color, facet = "n1", "N1", "system", "~index_join~skew"
+        #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(y_header[idx])
+        x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(y_header[idx])
+        fname, w, h = "micro_{}_10M_1k_line_indexJoin.png".format(y_axis), 6, 3
 
-            x_axis, x_label, color, facet = "n1", "N1", "system", "~skew"
-            #x_type, y_type, y_label = "continuous",  "continuous", "{}".format(y_header[idx])
-            x_type, y_type, y_label = "continuous",  "log10", "{} [log]".format(y_header[idx])
-            fname, w, h = "micro_{}_{}_10M_1k_line_indexJoin.png".format(y_axis, p), 6, 3
-
-            PlotLines("INDEX_JOIN", lambda_function, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
-
+        PlotLines(df,  x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
+        
 def plot_hash_join_mtm(con):
     ## hash join plots: 
     ## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: n1
     ###### Hash Join M:N, x-axis: g ordered by output size
-    where = f""" WHERE
+    where = f""" WHERE overheadtype<>'Materialize'  and
        op_type = 'HASH_JOIN_mtm'
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -253,7 +262,7 @@ def plot_hash_join_mtm(con):
 
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
     
-    where = f""" WHERE
+    where = f""" WHERE overheadtype<>'Materialize' and
       op_type = 'HASH_JOIN_mtm' and n1=1000000 and (skew=1)
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -286,7 +295,8 @@ def plot_hash_join():
 
 def plot_aggs(con):
     where = f""" WHERE
-      overheadType<>'Execute' and (system='Logical' or system='Logical_window' or system='SD') and
+      overheadType<>'Materialize' 
+      and (system='Logical' or system='Logical_window' or system='SD') and
       (op_type = 'HASH_GROUP_BY' or op_type = 'WINDOW') and n1 in (1000000, 10000000)
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -395,13 +405,13 @@ con = get_db()
 
 #plot_scans(con)
 #plot_filters(con)
-#plot_index_join()
+#plot_index_join(con)
 #plot_index_join_mtm(con)
 #plot_cross()
 #plot_ineq_joins(con)
 #plot_hash_join()
 #plot_hash_join_mtm(con)
-#plot_aggs(con)
+plot_aggs(con)
 
 ######### Summary
 summary(con, "HASH_JOIN", "n1, n2, skew, groups", True)

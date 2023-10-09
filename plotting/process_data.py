@@ -259,7 +259,13 @@ sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postpr
 ((sd_full.plan_no_create - sd_copy.plan_no_create)/sd_copy.plan_no_create)*100 as plan_mat_roverhead,
                                 
 (sd_full.plan_no_create-sd_full.base_plan_no_create)*1000 as plan_all_overhead,
-((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100 as plan_all_roverhead,
+case
+when sd_copy.plan_no_create > sd_full.plan_no_create then
+((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100
+else
+((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100
+end
+as plan_all_roverhead,
                                 
 (sd_copy.op_runtime-sd_copy.base_op_runtime)*1000 as op_execution_overhead,
 ((sd_copy.op_runtime-sd_copy.base_op_runtime)/sd_full.base_op_runtime)*100 as op_execution_roverhead,

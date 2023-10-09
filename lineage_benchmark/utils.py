@@ -15,7 +15,7 @@ def getStats(con, q):
     print("Query info: ", query_info.loc[n])
     query_id = query_info.loc[n, 'query_id']
     lineage_size = query_info.loc[n, 'size_bytes_max']
-    lineage_size = lineage_size/(1024*1024)
+    lineage_size = lineage_size#/(1024*1024)
     lineage_count = query_info.loc[n, 'size_bytes_min']
     nchunks = query_info.loc[n, 'nchunks']
     postprocess_time = query_info.loc[n, 'postprocess_time']

@@ -21,6 +21,7 @@ parser.add_argument('--show_output', action='store_true',  help="query output")
 parser.add_argument('--profile', action='store_true',  help="enable profiling")
 # lineage system
 parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
+parser.add_argument('--push_filter', action='store_true',  help="Enable trace_lineage")
 # benchmark setting
 parser.add_argument('--sf', type=float, help="sf scale", default=1)
 parser.add_argument('--threads', type=int, help="number of threads", default=1)
@@ -44,7 +45,7 @@ results = []
 con = duckdb.connect(database=':memory:', read_only=False)
 sf = args.sf
 # generate TPCH workload
-con.execute("CALL dbgen(sf="+str(args.sf)+");")
+con.execute("CALL dbgen(sf="+str(sf)+");")
 if args.threads > 1:
     con.execute("PRAGMA threads="+str(args.threads))
     con.execute("PRAGMA force_parallelism")
@@ -86,20 +87,23 @@ for qid in range(1, 23):
     q = perm_prefix+str(qid).zfill(2)+".sql"
     text_file = open(q, "r")
     tpch = text_file.read()
-    tpch = " ".join(tpch.split())
-    text_file.close()
-    print(tpch)
-    # run perm query
-    capture_avg, _ = Run(tpch, args, con, "lineage")
-    
-    perm_prefix = base + "/perm_distinct/q"
-    q = perm_prefix+str(qid).zfill(2)+".sql"
-    text_file = open(q, "r")
-    tpch = text_file.read()
-    tpch = " ".join(tpch.split())
-    text_file.close()
-    distinct_avg, df = Run(tpch, args, con)
-    print(base_avg, capture_avg, distinct_avg)
+    if args.push_filter == filter:
+        tpch = " ".join(tpch.split())
+        text_file.close()
+        print(tpch)
+        # run perm query
+        capture_avg, _ = Run(tpch, args, con, "lineage")
+        
+        perm_prefix = base + "/perm_distinct/q"
+        q = perm_prefix+str(qid).zfill(2)+".sql"
+        text_file = open(q, "r")
+        tpch = text_file.read()
+        tpch = " ".join(tpch.split())
+        text_file.close()
+        distinct_avg, df = Run(tpch, args, con)
+        print(base_avg, capture_avg, distinct_avg)
+    else:
+        # remove create lineage table
 
     t = 0
     tmin = 1000000

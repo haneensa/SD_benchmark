@@ -6,7 +6,7 @@
 # %%% SD_Capture:
 # $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage  --show_output --csv_append --base /home/haneen/
 # %%% SD_Persist and SD_Query:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage --persist --show_output --csv_append
+# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage --show_output --csv_append
 # %%% Perm:
 # $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1  --show_output --csv_append --base /home/haneen/ --perm
 # %%% Baseline:
@@ -26,24 +26,20 @@ parser.add_argument('notes', type=str,  help="run notes")
 parser.add_argument('--save_csv', action='store_true',  help="save result in csv")
 parser.add_argument('--csv_append', action='store_true',  help="Append results to old csv")
 parser.add_argument('--show_output', action='store_true',  help="query output")
-parser.add_argument('--profile', action='store_true',  help="Enable profiling")
 # lineage system
 parser.add_argument('--enable_lineage', action='store_true',  help="Enable trace_lineage")
-parser.add_argument('--persist', action='store_true',  help="Persist lineage captured")
 parser.add_argument('--stats', action='store_true',  help="get lineage size, nchunks and postprocess time")
 parser.add_argument('--perm', action='store_true',  help="Use Perm Approach with join")
 # benchmark setting
 parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=1)
 parser.add_argument('--base', type=str, help="Base directory for benchmark_data", default="")
 args = parser.parse_args()
-
+args.profile = True # always true since we capture detailed profiling results
 # append log results for each query instance
 # schema:  ["query", "runtime", "cardinality", "groups", "output", "lineage_size", "lineage_type"]
 results = []
 
-if args.enable_lineage and args.persist:
-    lineage_type = "SD_Persist"
-elif args.enable_lineage:
+if args.enable_lineage:
     lineage_type = "SD_Capture"
 elif args.perm:
     lineage_type = "Perm"
