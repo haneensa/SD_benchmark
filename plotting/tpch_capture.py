@@ -78,17 +78,11 @@ def getMat(plan, op):
         return 0
     return plan[op]
 
-#df = pd.read_csv("eval_results/tpch_benchmark_capture_sep23.csv")
-#df = pd.read_csv("eval_results/tpch_benchmark_capture_sep23.csv")
-#df = pd.read_csv("tpch_benchmark_capture_oct8_sd.csv")
-#df = pd.read_csv("tpch_benchmark_capture_oct11_sdfull.csv")
-#df = pd.read_csv("tpch_benchmark_capture_oct13_sd.csv")
-df = pd.read_csv("tpch_benchmark_capture_oct14_sd.csv")
-#df = df[(df['lineage_type'] != "Baseline") & (df['lineage_type'] != "Logical-RID") & (df['lineage_type'] != 'Logical-OPT') & (df['lineage_type'] != "Logical-window")]
+#df = pd.read_csv("tpch_benchmark_capture_oct14_sd.csv")
+df = pd.read_csv("tpch_benchmark_capture_all.csv")
 df.loc[:, "distinct_runtime"] = df.apply(lambda x: 0, axis=1)
 df.loc[:, "distinct_output"] = df.apply(lambda x: 0, axis=1)
 
-#df_logical = pd.read_csv("tpch_benchmark_capture_sep27_distinct.csv")
 df_logical = pd.read_csv("tpch_benchmark_capture_oct8_logicalv2.csv")
 df = pd.concat([df, df_logical], ignore_index=True)
 
@@ -97,7 +91,7 @@ g = ','.join(header_unique)
     
 def getstats(row, i):
     stats = row["stats"]
-    if type(stats) == str and len(stats) > 0:
+    if type(stats) == str and len(stats.split(",")) > i:
         stats = stats.split(",")
         if i == 0 and len(stats)==5:
             return stats[4]
@@ -190,50 +184,25 @@ print(con.execute("""create table tpch_logical_metrics as select {}, lineage_typ
                   where lineage_type='Logical-RID' or lineage_type='Logical-OPT' or lineage_type='Logical-window'
                   """.format(g)).fetchdf())
 
-#0 as postprocess_roverhead,
-#print(con.execute("select * from tpch_logical_metrics").fetchdf())
-#sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
-con.execute("""create table tpch_sd_metrics as select {}, 'SD_nocompress' as lineage_type, sd_full.output, sd_stats.output as distinct_output,
-sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
-(sd_stats.postprocess / (sd_full.base_plan_no_create*1000))*100 as postprocess_roverhead,
-(sd_copy.plan_no_create-sd_copy.base_plan_no_create)*1000 as plan_execution_overhead,
-((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100 as plan_execution_roverhead,
-                            
-(sd_full.plan_no_create - sd_copy.plan_no_create)*1000 as plan_mat_overhead,
-((sd_full.plan_no_create - sd_copy.plan_no_create)/sd_copy.plan_no_create)*100 as plan_mat_roverhead,
-                            
-(sd_full.plan_no_create-sd_full.base_plan_no_create)*1000 as plan_all_overhead,
-((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100 as plan_all_roverhead,
+con.execute("""create table tpch_sd_metrics as select {}, 'SD' as lineage_type, sd_full.output, sd_stats.output as distinct_output,
+            sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
+            (sd_stats.postprocess / (sd_full.base_plan_no_create*1000))*100 as postprocess_roverhead,
+            0 as plan_execution_overhead,
+            0 as plan_execution_roverhead,
+                                        
+            0 as plan_mat_overhead,
+            0 as plan_mat_roverhead,
+                                        
+            (sd_full.plan_no_create-sd_full.base_plan_no_create)*1000 as plan_all_overhead,
+            ((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100 as plan_all_roverhead,
 
-                            
-sd_full.output / sd_full.base_output as fanout
-                     from (select * from tpch_withBaseline where lineage_type='SD_copy') as sd_copy JOIN
-                          (select * from tpch_withBaseline where lineage_type='SD_full') as sd_full
- USING ({}) LEFT JOIN
-(select * from tpch_withBaseline where lineage_type='SD_stats') as sd_stats
-    USING ({})
+                                        
+            sd_full.output / sd_full.base_output as fanout
+                     from 
+                          (select * from tpch_withBaseline where lineage_type='SD_full') as sd_full  LEFT JOIN
+            (select * from tpch_withBaseline where lineage_type='SD_stats') as sd_stats
+                USING ({})
                   """.format(g, g, g)).fetchdf()
-con.execute("""create table tpch_sd_metrics_compress as select {}, 'SD' as lineage_type, sd_full.output, sd_stats.output as distinct_output,
-sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
-(sd_stats.postprocess / (sd_full.base_plan_no_create*1000))*100 as postprocess_roverhead,
-(sd_copy.plan_no_create-sd_copy.base_plan_no_create)*1000 as plan_execution_overhead,
-((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100 as plan_execution_roverhead,
-                            
-(sd_full.plan_no_create - sd_copy.plan_no_create)*1000 as plan_mat_overhead,
-((sd_full.plan_no_create - sd_copy.plan_no_create)/sd_copy.plan_no_create)*100 as plan_mat_roverhead,
-                            
-(sd_full.plan_no_create-sd_full.base_plan_no_create)*1000 as plan_all_overhead,
-((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100 as plan_all_roverhead,
-
-                            
-sd_full.output / sd_full.base_output as fanout
-                     from (select * from tpch_withBaseline where lineage_type='SD_copy_compress') as sd_copy JOIN
-                          (select * from tpch_withBaseline where lineage_type='SD_full') as sd_full
- USING ({}) LEFT JOIN
-(select * from tpch_withBaseline where lineage_type='SD_stats_compress') as sd_stats
-    USING ({})
-                  """.format(g, g, g)).fetchdf()
-#print("**", con.execute("select * from tpch_sd_metrics").fetchdf())
 
 
 def mktemplate(overheadType, prefix, table):
@@ -252,8 +221,6 @@ def mktemplate(overheadType, prefix, table):
 """
 template = f"""
   WITH data as (
-    {mktemplate('Total', 'plan_all_', 'tpch_sd_metrics_compress')}
-    UNION ALL
     {mktemplate('Total', 'plan_all_', 'tpch_sd_metrics')}
     UNION ALL
     {mktemplate('Materialize', 'plan_mat_', 'tpch_logical_metrics')}
@@ -280,7 +247,7 @@ template2 = f"""
   ) SELECT * FROM data {"{}"} """
 
 
-where = f"where system<>'SD_nocompress' and overheadtype='Total' and sf<>20 and n_threads=1"
+where = f"where overheadtype='Total' and sf<>20 and n_threads=1"
 data = con.execute(template.format(where)).fetchdf()
 #print(data)
 class_list = type1
@@ -326,7 +293,7 @@ if 1:
         ggsave("figures/tpch_sf10_{}.png".format(y_axis), p, postfix=postfix,  width=14, height=3, scale=0.8)
 
 if 1:
-    where = f"where system<>'SD_nocompress' and overheadtype='Total' and sf<>20"
+    where = f"where  overheadtype='Total' and sf<>20"
     data = con.execute(template.format(where)).fetchdf()
     print(data)
     y_axis_list = ["roverhead", "overhead"]
@@ -388,7 +355,7 @@ if 1:
                                 avg(distinct_output) as distinct_output
                                 from avg_tpch
                                 group by lineage_type, sf""").fetchdf())
-    for sys in ["tpch_sd_metrics", "tpch_sd_metrics_compress", "tpch_logical_metrics"]:
+    for sys in ["tpch_sd_metrics", "tpch_logical_metrics"]:
         q = f"""
         select lineage_type as t, query, sf, n_threads, avg(plan_execution_roverhead) as aper,
         avg(plan_mat_roverhead) as pmr, avg(plan_all_roverhead) as par

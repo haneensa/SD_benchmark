@@ -222,41 +222,40 @@ def preprocess(con, result_file):
 
     # 6. plan_full time (plan_all) -- overhead of create table and log.push_back()
     con.execute("""create table micro_sd_metrics as select {}, 'SD' as lineage_type, sd_full.output,
-sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
-(sd_stats.postprocess / (sd_full.base_plan_no_create*1000)) as postprocess_roverhead,
-(sd_copy.plan_no_create-sd_copy.base_plan_no_create)*1000 as plan_execution_overhead,
-((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100 as plan_execution_roverhead,
-                                
-(sd_full.plan_no_create - sd_copy.plan_no_create)*1000 as plan_mat_overhead,
-((sd_full.plan_no_create - sd_copy.plan_no_create)/sd_copy.plan_no_create)*100 as plan_mat_roverhead,
-                                
-case
-when sd_full.base_plan_no_create > sd_full.plan_no_create then
-0
-else
-(sd_full.plan_no_create-sd_full.base_plan_no_create)*1000
-end
-as plan_all_overhead,
+            sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
+            (sd_stats.postprocess / (sd_full.base_plan_no_create*1000)) as postprocess_roverhead,
+            0 as plan_execution_overhead,
+            0 as plan_execution_roverhead,
+                                            
+            0 as plan_mat_overhead,
+            0 as plan_mat_roverhead,
+                                            
+            case
+            when sd_full.base_plan_no_create > sd_full.plan_no_create then
+            0
+            else
+            (sd_full.plan_no_create-sd_full.base_plan_no_create)*1000
+            end
+            as plan_all_overhead,
 
-case
-when sd_full.base_plan_no_create > sd_full.plan_no_create then
-0
-else
-((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100
-end
-as plan_all_roverhead,
-                                
-(sd_full.op_runtime - sd_full.base_op_runtime)*1000 as overhead,
-((sd_full.op_runtime - sd_full.base_op_runtime)/sd_full.base_op_runtime) * 100 as rel_overhead,
+            case
+            when sd_full.base_plan_no_create > sd_full.plan_no_create then
+            0
+            else
+            ((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100
+            end
+            as plan_all_roverhead,
+                                            
+            (sd_full.op_runtime - sd_full.base_op_runtime)*1000 as overhead,
+            ((sd_full.op_runtime - sd_full.base_op_runtime)/sd_full.base_op_runtime) * 100 as rel_overhead,
 
-((sd_full.op_runtime-sd_full.base_op_runtime))*1000 as exec_overhead,
-((sd_full.op_runtime-sd_full.base_op_runtime)/sd_full.base_op_runtime)*100 as exec_roverhead,
+            ((sd_full.op_runtime-sd_full.base_op_runtime))*1000 as exec_overhead,
+            ((sd_full.op_runtime-sd_full.base_op_runtime)/sd_full.base_op_runtime)*100 as exec_roverhead,
 
-(sd_full.op_runtime - sd_full.base_op_runtime)*1000 as total_overhead,
-sd_full.output / sd_full.base_output as fanout
-                         from (select * from micro_withBaseline where lineage_type='SD_copy') as sd_copy JOIN
-                              (select * from micro_withBaseline where lineage_type='SD_full') as sd_full
-                              USING ({}) JOIN
+            (sd_full.op_runtime - sd_full.base_op_runtime)*1000 as total_overhead,
+            sd_full.output / sd_full.base_output as fanout
+                         from
+                              (select * from micro_withBaseline where lineage_type='SD_full') as sd_full JOIN
                               (select * from micro_withBaseline where lineage_type='SD_stats') as sd_stats
                               USING ({})
                       """.format(g, g, g)).fetchdf()
@@ -269,8 +268,7 @@ def get_db():
         con = duckdb.connect(database=database, read_only=False)
     else:
         con = duckdb.connect(database=database, read_only=False)
-        #result_file = "eval_results/micro_benchmark_notes_sep17.csv"
-        result_file = "micro_benchmark_notes_oct12_sdfull.csv"
+        result_file = "micro_benchmark_notes_all.csv"
         preprocess(con, result_file)
     return con
 

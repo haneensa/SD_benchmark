@@ -413,15 +413,13 @@ def summary(con, q, select, detailed=False):
         """).fetchdf())
 con = get_db()
 
-#plot_scans(con)
-#plot_filters(con)
+plot_scans(con)
+plot_filters(con)
 #plot_index_join(con)
 #plot_index_join_mtm(con)
-#plot_cross()
-#plot_ineq_joins(con)
-#plot_hash_join()
-#plot_hash_join_mtm(con)
-#plot_aggs(con)
+plot_ineq_joins(con)
+plot_hash_join_mtm(con)
+plot_aggs(con)
 
 ######### Summary
 #summary(con, "HASH_JOIN", "n1, n2, skew, groups", True)
