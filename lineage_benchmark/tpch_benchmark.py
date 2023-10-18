@@ -1,7 +1,4 @@
-# python3.7 scripts/lineage_benchmark/tpch_benchmark.py feb11  --repeat 3  --save_csv  --perm --csv_append
-# python3.7 scripts/lineage_benchmark/tpch_benchmark.py feb11  --repeat 3  --save_csv  --csv_append
 import json
-import psutil
 import duckdb
 import pandas as pd
 import argparse
@@ -43,10 +40,9 @@ parser.add_argument('--save_csv', action='store_true',  help="save result in csv
 parser.add_argument('--csv_append', action='store_true',  help="Append results to old csv")
 parser.add_argument('--sf', type=float, help="sf scale", default=1)
 parser.add_argument('--repeat', type=int, help="Repeat time for each query", default=1)
-parser.add_argument('--profile', action='store_true',  help="Enable profiling")
 parser.add_argument('--threads', type=int, help="number of threads", default=1)
 args = parser.parse_args()
-print(args.profile)
+args.profile = True
 
 args.r = 3
 if args.stats:
@@ -72,11 +68,12 @@ elif args.gprom:
 elif not args.enable_lineage:
     lineage_type = "Baseline"
 else:
-    lineage_type = "SD_Capture"
-# sf: 1, 5, 10, 20
-# threads: 1, 4, 8, 12, 16
+    lineage_type = "SD_full"
+    if args.stats:
+        lineage_type = "SD_stats"
+
 opt_queries = [2, 4, 15, 16, 17, 20, 21]
-dont_scale = [2, 4, 17, 20, 21] #, 4, 16, 17, 20, 21, 22]
+dont_scale = [2, 4, 17, 20, 21]
 dont_scale_10 = [11, 22]
 dont_scale_20 = [11, 16, 22]
 gprom_list = [1, 2, 4, 5, 7, 9, 11, 12, 13, 15, 22]
@@ -87,8 +84,6 @@ sf = args.sf
 con.execute("CALL dbgen(sf="+str(sf)+");")
 th_id = args.threads
 con.execute("PRAGMA threads="+str(th_id))
-#con.execute("PRAGMA force_parallelism")
-#print(con.execute("pragma memory_limit='60gb'").fetchdf())
 for i in range(1,23):
     if args.gprom and i not in gprom_list: continue
     if (args.perm and args.opt == False) and ((i in dont_scale) or (sf>10 and i in dont_scale_20) or (sf==10 and i in dont_scale_10)): continue
@@ -104,17 +99,12 @@ for i in range(1,23):
     #query = "select  l_partkey from  lineitem group by l_partkey"
     print("%%%%%%%%%%%%%%%% Running Query # ", i, " threads: ", th_id)
     
-    memory_usage_before = psutil.Process().memory_info().rss/(1024.0*1024.0)
-
-    avg, df = Run(query, args, con, table_name)
+    avg, df, mem = Run(query, args, con, table_name)
     plan_timings = parse_plan_timings(args.qid)
     output_size = len(df)
     stats = ""
     if table_name:
-        memory_usage_after = psutil.Process().memory_info().rss/(1024.0*1024.0)
-        mem = (memory_usage_after-memory_usage_before)
         size_avg += mem
-        print("\n*******", memory_usage_before, memory_usage_after, mem)
         df = con.execute("select count(*) as c from {}".format(table_name)).fetchdf()
         output_size = df.loc[0,'c']
         stats = "{},{},{},{}".format(mem, output_size, 0, 0)
@@ -131,11 +121,7 @@ for i in range(1,23):
     if args.show_tables:
         print(con.execute("PRAGMA show_tables").fetchdf())
     if args.enable_lineage and args.stats:
-        memory_usage_after = psutil.Process().memory_info().rss/(1024.0*1024.0)
-        mem = (memory_usage_after-memory_usage_before)
-        size_avg += mem
         lineage_size, lineage_count, nchunks, postprocess_time = getStats(con, query)
-        print("\n*******", memory_usage_before, memory_usage_after, mem, lineage_size)
         size_avg += lineage_size
         stats = "{},{},{},{},{}".format(lineage_size, lineage_count, nchunks, postprocess_time*1000, mem)
     if args.enable_lineage:

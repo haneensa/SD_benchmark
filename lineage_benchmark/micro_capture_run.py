@@ -1,16 +1,4 @@
-# TODO: incremantally add: SD_Capture, SD_Capture_LSN, SD_Capture_Offsets, SD_Capture+Index, SD_Capture+PostPorcess, SD_Capture+Index+PostProcess
-##      add querying single operator logic
-##      add visualization graph and summarization / compute relative overhead and compare between different systems
 # Benchmark DuckDB's physical operators
-# Collect runtime, lineage size, output cardinality
-# %%% SD_Capture:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage  --show_output --csv_append --base /home/haneen/
-# %%% SD_Persist and SD_Query:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1 --enable_lineage --show_output --csv_append
-# %%% Perm:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1  --show_output --csv_append --base /home/haneen/ --perm
-# %%% Baseline:
-# $ python3.7 scripts/lineage_benchmark/micro_physical_op.py draft2 --save_csv --repeat 1  --show_output --csv_append
 import duckdb
 import pandas as pd
 import argparse
@@ -40,9 +28,11 @@ args.profile = True # always true since we capture detailed profiling results
 results = []
 
 if args.enable_lineage:
-    lineage_type = "SD_Capture"
+    lineage_type = "SD_full"
+    if args.stats:
+        lineage_type = "SD_stats"
 elif args.perm:
-    lineage_type = "Perm"
+    lineage_type = "Logical"
 else:
     lineage_type = "Baseline"
 

@@ -1,3 +1,4 @@
+import psutil
 from timeit import default_timer as timer
 import random 
 import sys
@@ -19,6 +20,10 @@ def getStats(con, q):
     lineage_count = query_info.loc[n, 'size_bytes_min']
     nchunks = query_info.loc[n, 'nchunks']
     postprocess_time = query_info.loc[n, 'postprocess_time']
+
+    ########
+    #print(con.execute(f"select * from LINEAGE_{query_id}_SEQ_SCAN_0_0").fetchdf())
+    ########
 
     return lineage_size, lineage_count, nchunks, postprocess_time
 
@@ -59,13 +64,18 @@ def Run(q, args, con, table_name=None):
         if table_name:
             con.execute("drop table {}".format(table_name))
     
+    memory_usage_before = psutil.Process().memory_info().rss
     df, duration = execute(q, con, args)
+    memory_usage_after = psutil.Process().memory_info().rss
+    mem = (memory_usage_after-memory_usage_before)
+    
     dur_acc += duration
     if args.show_output:
         print(df)
     avg = dur_acc/args.repeat
     print("Avg Time in sec: ", avg, " output size: ", len(df)) 
-    return avg, df
+    print("\n*******", memory_usage_before, memory_usage_after, mem)
+    return avg, df, mem
 
 """
 z is an integer that follows a zipfian distribution

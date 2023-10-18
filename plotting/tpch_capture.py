@@ -80,7 +80,10 @@ def getMat(plan, op):
 
 #df = pd.read_csv("eval_results/tpch_benchmark_capture_sep23.csv")
 #df = pd.read_csv("eval_results/tpch_benchmark_capture_sep23.csv")
-df = pd.read_csv("tpch_benchmark_capture_oct8_sd.csv")
+#df = pd.read_csv("tpch_benchmark_capture_oct8_sd.csv")
+#df = pd.read_csv("tpch_benchmark_capture_oct11_sdfull.csv")
+#df = pd.read_csv("tpch_benchmark_capture_oct13_sd.csv")
+df = pd.read_csv("tpch_benchmark_capture_oct14_sd.csv")
 #df = df[(df['lineage_type'] != "Baseline") & (df['lineage_type'] != "Logical-RID") & (df['lineage_type'] != 'Logical-OPT') & (df['lineage_type'] != "Logical-window")]
 df.loc[:, "distinct_runtime"] = df.apply(lambda x: 0, axis=1)
 df.loc[:, "distinct_output"] = df.apply(lambda x: 0, axis=1)
@@ -225,7 +228,7 @@ sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postpr
                             
 sd_full.output / sd_full.base_output as fanout
                      from (select * from tpch_withBaseline where lineage_type='SD_copy_compress') as sd_copy JOIN
-                          (select * from tpch_withBaseline where lineage_type='SD_full_compress') as sd_full
+                          (select * from tpch_withBaseline where lineage_type='SD_full') as sd_full
  USING ({}) LEFT JOIN
 (select * from tpch_withBaseline where lineage_type='SD_stats_compress') as sd_stats
     USING ({})
@@ -277,7 +280,7 @@ template2 = f"""
   ) SELECT * FROM data {"{}"} """
 
 
-where = f"where system<>'SD_nocompress' and overheadtype<>'Materialize' and sf<>20 and n_threads=1"
+where = f"where system<>'SD_nocompress' and overheadtype='Total' and sf<>20 and n_threads=1"
 data = con.execute(template.format(where)).fetchdf()
 #print(data)
 class_list = type1
@@ -323,7 +326,7 @@ if 1:
         ggsave("figures/tpch_sf10_{}.png".format(y_axis), p, postfix=postfix,  width=14, height=3, scale=0.8)
 
 if 1:
-    where = f"where system<>'SD_nocompress' and overheadtype<>'Materialize' and sf<>20"
+    where = f"where system<>'SD_nocompress' and overheadtype='Total' and sf<>20"
     data = con.execute(template.format(where)).fetchdf()
     print(data)
     y_axis_list = ["roverhead", "overhead"]
@@ -399,7 +402,39 @@ if 1:
         select qtype, lineage_type, query, sf, output, n_threads, fanout, plan_all_roverhead, plan_execution_roverhead, plan_mat_roverhead,
                postprocess, postprocess_roverhead
         from {sys}
+        where n_threads=1
         order by qtype, query, sf
         """
         out = con.execute(q).fetchdf()
-        #print(out)
+        print(out.to_string())
+        
+        q = f"""
+        select qtype, lineage_type as t, sf, avg(plan_execution_roverhead) as aper,
+        avg(plan_mat_roverhead) as pmr, avg(plan_all_roverhead) as par
+        from {sys}
+        where n_threads=1
+        group by qtype, lineage_type,sf, n_threads
+        order by  qtype, sf, lineage_type
+        """
+        out = con.execute(q).fetchdf()
+        print(out.to_string())
+        
+        q = f"""
+        select lineage_type as t ,
+        avg(plan_execution_roverhead) as aper,
+        max(plan_execution_roverhead) as max_aper,
+        min(plan_execution_roverhead) as min_aper,
+
+        avg(plan_mat_roverhead) as pmr, 
+        max(plan_mat_roverhead) as max_pmr, 
+        
+        avg(plan_all_roverhead) as par,
+        max(plan_all_roverhead) as max_par,
+        min(plan_all_roverhead) as min_par
+        from {sys}
+        where sf<>20
+        and n_threads=1
+        group by lineage_type
+        """
+        out = con.execute(q).fetchdf()
+        print(out.to_string())

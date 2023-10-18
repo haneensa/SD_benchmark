@@ -95,50 +95,36 @@ def set_to_none(row):
     else:
         return row["sel"]
 
+def getstats(row, i):
+    stats = row["stats"]
+    if type(stats) == str and len(stats.split(",")) > i:
+        stats = stats.split(",")
+        if i == 0 and len(stats)==5:
+            return stats[4]
+        return stats[i]
+    else:
+        0
+
 def preprocess(con, result_file):
     """
-    lineage_type: SD_full, SD_copy, SD_stats, Logical, Baseline
+    lineage_type: SD_full, SD_stats, Logical, Baseline
     TODO: don't depend on notes
     """
-    df_all = pd.read_csv(result_file)
-    #df_logical = df_all[(df_all["lineage_type"]=="Logical") | (df_all["lineage_type"]=="Logical_group_concat") | (df_all["lineage_type"]=="Logical_window") ]
-    df_logical = df_all[(df_all["lineage_type"]=="Logical") | (df_all["lineage_type"]=="Logical_group_concat") | (df_all["lineage_type"]=="Logical_list") | (df_all["lineage_type"]=="Logical_window") ]
-    #print("***", df_all[df_all["query"]=="SEQ"]["lineage_type"])
-    #print("***", df_all)
-    df_baseline = df_all[df_all["lineage_type"]=="Baseline"]
-    df_stats = df_all[df_all["lineage_type"]=="SD_stats"]
-    df_full = df_all[df_all["lineage_type"]=="SD_full"]
-    df_copy = df_all[df_all["lineage_type"]=="SD_copy"]
-
-    df_data = df_baseline
-    df_data = df_data.append(df_logical)
-    df_data = df_data.append(df_full)
-    df_data = df_data.append(df_copy)
-
-    df_data.loc[:, "op_runtime"] = df_data.apply(lambda x: getOperatorRuntime(x['plan_timings'], x['query'], x), axis=1)
-    df_data.loc[:, "mat_time"] = df_data.apply(lambda x: getMat(x['plan_timings'], x['query']), axis=1)
-    df_data.loc[:, "plan_runtime"] = df_data.apply(lambda x: getAllExec(x['plan_timings'], x['query']), axis=1)
-
-    df_stats.loc[:, "op_runtime"] = -1
-    df_stats.loc[:, "mat_time"] = -1
-    df_stats.loc[:, "plan_runtime"] = -1
+    df = pd.read_csv(result_file)
     
-    df_stats.loc[:, "lineage_size"] = df_stats.apply(lambda x: x['stats'].split(",")[0], axis=1)
-    df_stats.loc[:, "lineage_count"] = df_stats.apply(lambda x: x['stats'].split(",")[1], axis=1)
-    df_stats.loc[:, "nchunks"] = df_stats.apply(lambda x: x['stats'].split(",")[2], axis=1)
-    df_stats.loc[:, "postprocess"] = df_stats.apply(lambda x: x['stats'].split(",")[3], axis=1)
+    df.loc[:, "lineage_size"] = df.apply(lambda x: getstats(x, 0), axis=1)
+    df.loc[:, "lineage_count"] = df.apply(lambda x: getstats(x, 1), axis=1)
+    df.loc[:, "nchunks"] = df.apply(lambda x: getstats(x, 2), axis=1)
+    df.loc[:, "postprocess"] = df.apply(lambda x: getstats(x, 3), axis=1)
 
-    df_data.loc[:, "lineage_size"] = df_data.apply(lambda x: 0, axis=1)
-    df_data.loc[:, "lineage_count"] = df_data.apply(lambda x: 0, axis=1)
-    df_data.loc[:, "nchunks"] = df_data.apply(lambda x: 0, axis=1)
-    df_data.loc[:, "postprocess"] = df_data.apply(lambda x: 0, axis=1)
+    df.loc[:, "op_runtime"] = df.apply(lambda x: getOperatorRuntime(x['plan_timings'], x['query'], x), axis=1)
+    df.loc[:, "mat_time"] = df.apply(lambda x: getMat(x['plan_timings'], x['query']), axis=1)
+    df.loc[:, "plan_runtime"] = df.apply(lambda x: getAllExec(x['plan_timings'], x['query']), axis=1)
     
-    for df in [df_data, df_stats]:
-        df.loc[:, "index_scan"] = df.apply(lambda x: unify_bool_type(x), axis=1)
-        df.loc[:, "index_join"] = df.apply(lambda x: get_index_join_qtype(x), axis=1)
-        df.loc[:, "sel"] = df.apply(lambda x: set_to_none(x), axis=1)
-    df_final = df_data
-    df_final = df_final.append(df_stats)
+    df.loc[:, "index_scan"] = df.apply(lambda x: unify_bool_type(x), axis=1)
+    df.loc[:, "index_join"] = df.apply(lambda x: get_index_join_qtype(x), axis=1)
+    df.loc[:, "sel"] = df.apply(lambda x: set_to_none(x), axis=1)
+    df_final = df
 
     metrics = ["runtime", "output", "op_runtime", "mat_time", "plan_runtime", "nchunks", "lineage_size", "lineage_count", "postprocess"]
     header_unique = ["query", "n1", "n2", "skew", "ncol", "sel", "groups", "r", "index_join", "lineage_type"]
@@ -219,14 +205,6 @@ def preprocess(con, result_file):
                                 (plan_runtime-base_plan_runtime)*1000 as plan_all_overhead,
                                 ((plan_runtime-base_plan_runtime)/base_plan_no_create)*100 as plan_all_roverhead,
                                 
-                                (plan_no_create-base_plan_no_create)*1000 as op_execution_overhead,
-                                ((plan_no_create-base_plan_no_create)/base_op_runtime)*100 as op_execution_roverhead,
-                                
-                                (mat_time - base_mat_time)*1000 as op_mat_overhead,
-                                ((mat_time - base_mat_time) / base_op_runtime) *100 as op_mat_roverhead,
-                                
-                                (plan_runtime-base_plan_runtime)*1000 as op_all_overhead,
-                                ((plan_runtime-base_plan_runtime)/base_op_runtime)*100 as op_all_roverhead,
 
                                 (runtime - base_runtime)*1000 as overhead,
                                 ((op_runtime - base_op_runtime)/base_op_runtime)*100 as rel_overhead,
@@ -239,15 +217,9 @@ def preprocess(con, result_file):
                       where lineage_type='Logical' or lineage_type='Logical_list' or lineage_type='Logical_group_concat' or lineage_type='Logical_window'  """.format(g)).fetchdf())
 
     print(con.execute("select * from micro_perm_metrics").fetchdf())
-    #((sd_copy.op_runtime-sd_copy.base_op_runtime))*1000 as exec_overhead,
-    #((sd_copy.op_runtime-sd_copy.base_op_runtime)/sd_copy.base_op_runtime)*100 as exec_roverhead,
     # calculate metrics for SmokedDuck
-    # 1. op_sd_copy time (op_execution) -- overhead on operators we are inspecting excluding log.push and create table
-    # 2. op_sd_mat time (ap_mat)  -- overhead of create table and log.push for single op
     # 3. op_sd_full time (op_all) -- overhead of all including materialization and log.push
 
-    # 4. plan_copy time (plan_execution) -- overhead on all operators except create_table for Perm and log.push_back()
-    # 5. plan_mat time (plan_mat) -- overhead of materialization on all operators (SD spread, Perm create table)
     # 6. plan_full time (plan_all) -- overhead of create table and log.push_back()
     con.execute("""create table micro_sd_metrics as select {}, 'SD' as lineage_type, sd_full.output,
 sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postprocess,
@@ -258,24 +230,22 @@ sd_stats.nchunks, sd_stats.lineage_size, sd_stats.lineage_count, sd_stats.postpr
 (sd_full.plan_no_create - sd_copy.plan_no_create)*1000 as plan_mat_overhead,
 ((sd_full.plan_no_create - sd_copy.plan_no_create)/sd_copy.plan_no_create)*100 as plan_mat_roverhead,
                                 
-(sd_full.plan_no_create-sd_full.base_plan_no_create)*1000 as plan_all_overhead,
 case
-when sd_copy.plan_no_create > sd_full.plan_no_create then
-((sd_copy.plan_no_create-sd_copy.base_plan_no_create)/sd_copy.base_plan_no_create)*100
+when sd_full.base_plan_no_create > sd_full.plan_no_create then
+0
+else
+(sd_full.plan_no_create-sd_full.base_plan_no_create)*1000
+end
+as plan_all_overhead,
+
+case
+when sd_full.base_plan_no_create > sd_full.plan_no_create then
+0
 else
 ((sd_full.plan_no_create-sd_full.base_plan_no_create)/sd_full.base_plan_no_create)*100
 end
 as plan_all_roverhead,
                                 
-(sd_copy.op_runtime-sd_copy.base_op_runtime)*1000 as op_execution_overhead,
-((sd_copy.op_runtime-sd_copy.base_op_runtime)/sd_full.base_op_runtime)*100 as op_execution_roverhead,
-                                
-(sd_full.op_runtime-sd_copy.op_runtime)*1000 as op_mat_overhead,
-((sd_full.op_runtime-sd_copy.op_runtime)/sd_full.base_op_runtime)*100 as op_mat_roverhead,
-
-(sd_full.op_runtime-sd_full.base_op_runtime)*1000 as op_all_overhead,
-((sd_full.op_runtime-sd_full.base_op_runtime)/sd_full.base_op_runtime)*100 as op_all_roverhead,
-
 (sd_full.op_runtime - sd_full.base_op_runtime)*1000 as overhead,
 ((sd_full.op_runtime - sd_full.base_op_runtime)/sd_full.base_op_runtime) * 100 as rel_overhead,
 
@@ -290,6 +260,7 @@ sd_full.output / sd_full.base_output as fanout
                               (select * from micro_withBaseline where lineage_type='SD_stats') as sd_stats
                               USING ({})
                       """.format(g, g, g)).fetchdf()
+    print(con.execute("select * from  micro_sd_metrics where query='NESTED_LOOP_JOIN'").fetchdf())
 
 def get_db():
     # check if micro.db exists, if not, then reconstruct the database
@@ -298,7 +269,8 @@ def get_db():
         con = duckdb.connect(database=database, read_only=False)
     else:
         con = duckdb.connect(database=database, read_only=False)
-        result_file = "eval_results/micro_benchmark_notes_sep17.csv"
+        #result_file = "eval_results/micro_benchmark_notes_sep17.csv"
+        result_file = "micro_benchmark_notes_oct12_sdfull.csv"
         preprocess(con, result_file)
     return con
 

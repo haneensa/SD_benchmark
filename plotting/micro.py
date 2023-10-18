@@ -43,17 +43,18 @@ template = f"""
   WITH data as (
     {mktemplate('Total', 'plan_all_', 'micro_sd_metrics')}
     UNION ALL
-    {mktemplate('Materialize', 'plan_mat_', 'micro_sd_metrics')}
-    UNION ALL
     {mktemplate('Materialize', 'plan_mat_', 'micro_perm_metrics')}
     UNION ALL
     {mktemplate('Total', 'plan_all_', 'micro_perm_metrics')}
     UNION ALL
-    {mktemplate('Execute', 'plan_execution_', 'micro_sd_metrics')}
-    UNION ALL
     {mktemplate('Execute', 'plan_execution_', 'micro_perm_metrics')}
   ) SELECT * FROM data {"{}"} ORDER BY overheadType desc """
-
+"""
+    UNION ALL
+    {mktemplate('Materialize', 'plan_mat_', 'micro_sd_metrics')}
+    UNION ALL
+    {mktemplate('Execute', 'plan_execution_', 'micro_sd_metrics')}
+"""
 def PlotLines(pdata, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h, wrap=None, xkwargs=None, labeller=None):
     print("Plot:")
     print("Plot:")
@@ -103,7 +104,7 @@ def plot_scans(con):
 
 def plot_filters(con):
     where = f"""
-    WHERE overheadtype<>'Materialize' and  op_type IN ('FILTER','SEQ_SCAN')
+    WHERE overheadtype<>'Execute' and  op_type IN ('FILTER','SEQ_SCAN')
     """
     df = con.execute(template.format(where)).fetchdf()
 
@@ -135,7 +136,7 @@ def plot_filters(con):
     
     # plot Filters figure: 
     where = f"""
-    WHERE overheadtype<>'Materialize' and  op_type IN ('FILTER','SEQ_SCAN') AND 
+    WHERE overheadtype<>'Execute' and  op_type IN ('FILTER','SEQ_SCAN') AND 
     n1=10000000 and ncol=0
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -163,7 +164,7 @@ def plot_cross():
 def plot_ineq_joins(con):
     # joins inequiality
     d = { "BLOCKWISE_NL_JOIN": "BNL", "PIECEWISE_MERGE_JOIN": "Merge", "NESTED_LOOP_JOIN": "NL"}
-    where = f""" WHERE overheadtype<>'Materialize'  and
+    where = f""" WHERE overheadtype<>'Execute'  and
       op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')  
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -176,7 +177,7 @@ def plot_ineq_joins(con):
         fname, w, h = "micro_{}_line_ineq.png".format(y_axis), 8, 4
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
 
-    where = f""" WHERE overheadtype<>'Materialize' and 
+    where = f""" WHERE overheadtype<>'Execute' and 
       op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN')
       and n2=1000000
     """
@@ -250,7 +251,7 @@ def plot_hash_join_mtm(con):
     ## hash join plots: 
     ## 1) X-axis: selectivity, Y-axis: relative overhead | overhead; group: n1
     ###### Hash Join M:N, x-axis: g ordered by output size
-    where = f""" WHERE overheadtype<>'Materialize'  and
+    where = f""" WHERE overheadtype<>'Execute'  and
        op_type = 'HASH_JOIN_mtm'
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -262,7 +263,7 @@ def plot_hash_join_mtm(con):
 
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h)
     
-    where = f""" WHERE overheadtype<>'Materialize' and
+    where = f""" WHERE overheadtype<>'Execute' and
       op_type = 'HASH_JOIN_mtm' and n1=1000000 and (skew=1)
     """
     df = con.execute(template.format(where)).fetchdf()
@@ -295,14 +296,14 @@ def plot_hash_join():
 
 def plot_aggs(con):
     where = f""" WHERE
-      overheadType<>'Materialize' 
-      and (system='Logical' or system='Logical_window' or system='SD') and
-      (op_type = 'HASH_GROUP_BY' or op_type = 'WINDOW') and n1 in (1000000, 10000000)
+      overheadType<>'Execute' 
+      and (system='Logical' or system='SD') and
+      (op_type = 'HASH_GROUP_BY' or op_type = 'PERFECT_HASH_GROUP_BY') and n1=10000000
     """
     df = con.execute(template.format(where)).fetchdf()
     df['n1'] = df['n1'].apply(lambda v: v / 1000000)
     for idx, y_axis in enumerate(y_axis_list):
-        x_axis, x_label, color, facet = "g", "Groups (g)", "system", ".~n1"
+        x_axis, x_label, color, facet = "g", "Groups (g)", "system", ".~n1~op_type"
         labeller="labeller(n1=function(x)paste('# Tuples:',x,'M',sep=''))"
         x_type, y_type, y_label = "log10", "log10", "{} [log]".format(y_header[idx])
         xkwargs=None # dict(breaks=[10,100,1000], labels=list(map(esc,['10','100','1000'])))
@@ -310,13 +311,14 @@ def plot_aggs(con):
 
         PlotLines(df, x_axis, y_axis, x_label, y_label, x_type, y_type, color, linetype, facet, fname, w, h, None, xkwargs, labeller)
     where = f""" WHERE
-      overheadType<>'Materialize' and
-      (op_type = 'HASH_GROUP_BY' or op_type = 'WINDOW') and n1 in (1000000, 10000000) and g=10
+      overheadType<>'Execute'
+      and (system='Logical' or system='SD') and
+      (op_type = 'HASH_GROUP_BY' or op_type = 'PERFECT_HASH_GROUP_BY') and n1=10000000 and g=10
     """
     df = con.execute(template.format(where)).fetchdf()
     df['n1'] = df['n1'].apply(lambda v: v / 1000000)
     for idx, y_axis in enumerate(y_axis_list):
-        facet = ".~n1"
+        facet = ".~n1~op_type"
         p = ggplot(df, aes(x="system", y=y_axis, color=color, fill=linetype))
         p += geom_bar(stat=esc('identity'), width=0.8)
         p += axis_labels(x_label, y_label, "discrete", y_type)
@@ -329,13 +331,10 @@ def plot_aggs(con):
 
 
 detailed_template = """
-            op_execution_roverhead as op_e_ro,
             plan_execution_roverhead as p_e_ro,
 
-            op_mat_roverhead as op_m_ro,
             plan_mat_roverhead as p_m_ro,
             
-            op_all_roverhead as op_a_ro,
             plan_all_roverhead as p_a_ro,
             lineage_size, lineage_count, nchunks,
             postprocess, postprocess_roverhead
@@ -343,17 +342,24 @@ detailed_template = """
 #avg(op_all_overhead) as o_a_o, avg(op_all_roverhead) as o_a_ro,
 #avg(op_execution_overhead) as o_e_o, avg(op_execution_roverhead) as o_e_ro,
 #avg(op_mat_overhead) as o_m_o, avg(op_mat_roverhead) as o_m_ro,
+#avg(plan_execution_overhead) as p_e_o,
+#stddev_pop(plan_execution_roverhead) as sp_e_ro,
 summary_template = """
-        avg(plan_execution_overhead) as p_e_o, avg(plan_execution_roverhead) as p_e_ro,
-        stddev_pop(plan_execution_roverhead) as sp_e_ro,
+        avg(plan_execution_roverhead) as p_e_ro,
           
-        avg(plan_mat_overhead) as p_m_o, avg(plan_mat_roverhead) as p_m_ro,
+        avg(plan_all_overhead) as p_a_o,
+        avg(plan_all_roverhead) as p_a_ro,
+        stddev_pop(plan_all_roverhead) as sp_a_ro,
+        
+        max(plan_all_roverhead) as maxp_a_ro,
+        max(plan_execution_roverhead) as maxp_e_ro,
+        max(plan_mat_roverhead) as maxp_m_ro,
+
+        avg(plan_mat_roverhead) as p_m_ro,
         stddev_pop(plan_mat_roverhead) as sp_m_ro,
         
         
-        max(plan_execution_roverhead) as maxp_e_ro,
-        max(plan_mat_roverhead) as maxp_m_ro,
-        
+        min(plan_all_roverhead) as minp_a_ro,
         min(plan_execution_roverhead) as minp_e_ro,
         min(plan_mat_roverhead) as minp_m_ro,
         avg(postprocess) as post, avg(postprocess_roverhead) as post_rov, avg(nchunks) as  nch, avg(lineage_count) as lcnt
@@ -375,11 +381,15 @@ def summary(con, q, select, detailed=False):
             order by lineage_type, {select}
             """).fetchdf().to_string())
 
+    print(f"*** summary {q}\n", con.execute(f"""select query, index_join,
+        plan_all_overhead
+        from micro_sd_metrics where query='{q}'
+        """).fetchdf())
 
-    print(f"*** summary {q}\n", con.execute(f"""select index_join,
+    print(f"*** summary {q}\n", con.execute(f"""select query, index_join,
         {summary_template}
         from micro_sd_metrics where query='{q}'
-        GROUP BY index_join, lineage_type
+        GROUP BY index_join, lineage_type, query
         """).fetchdf())
     print(f"*** summary {q}\n", con.execute(f"""select index_join, lineage_type,
         {summary_template}
@@ -411,18 +421,83 @@ con = get_db()
 #plot_ineq_joins(con)
 #plot_hash_join()
 #plot_hash_join_mtm(con)
-plot_aggs(con)
+#plot_aggs(con)
 
 ######### Summary
-summary(con, "HASH_JOIN", "n1, n2, skew, groups", True)
-summary(con, "HASH_JOIN_mtm", "n1, n2, skew, groups", True)
-summary(con, "INDEX_JOIN", "n1, n2, skew, groups")
-summary(con, "INDEX_JOIN_mtm", "n1, n2, skew, groups")
-for op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN', "CROSS_PRODUCT"):
-    summary(con, op_type, "n1, sel")
-summary(con, "HASH_GROUP_BY", "n1, groups")
-summary(con, "PERFECT_HASH_GROUP_BY", "n1, groups")
-summary(con, "FILTER", "n1, sel, ncol")
-summary(con, "SEQ_SCAN", "n1, sel, ncol")
-summary(con, "SEQ", "n1, ncol")
-summary(con, "ORDER_BY", "n1, ncol")
+#summary(con, "HASH_JOIN", "n1, n2, skew, groups", True)
+#summary(con, "HASH_JOIN_mtm", "n1, n2, skew, groups", True)
+#summary(con, "INDEX_JOIN", "n1, n2, skew, groups")
+#summary(con, "INDEX_JOIN_mtm", "n1, n2, skew, groups")
+#for op_type in ('NESTED_LOOP_JOIN', 'PIECEWISE_MERGE_JOIN', 'BLOCKWISE_NL_JOIN', "CROSS_PRODUCT"):
+#    summary(con, op_type, "n1, sel", True)
+#summary(con, "HASH_GROUP_BY", "n1, groups")
+#summary(con, "PERFECT_HASH_GROUP_BY", "n1, groups", True)
+#summary(con, "FILTER", "n1, sel, ncol")
+#summary(con, "SEQ_SCAN", "n1, sel, ncol")
+#summary(con, "SEQ", "n1, ncol")
+#summary(con, "ORDER_BY", "n1, ncol")
+
+header_unique = ["query", "n1", "n2", "skew", "ncol", "sel", "groups",  "index_join"]
+g = ','.join(header_unique)
+print(f"*** summary all\n", con.execute(f"""select perm.lineage_type,
+    avg(sd.plan_all_roverhead) as sd_capture,
+    max(sd.plan_all_roverhead) as max_sd_capture,
+    avg(perm.plan_all_roverhead) as perm_capture,
+    max(perm.plan_all_roverhead) as max_perm_capture,
+    avg(perm.plan_execution_roverhead) as perm_e,
+    max(perm.plan_execution_roverhead) as maxperm_e,
+    avg(perm.plan_mat_roverhead) as perm_mat,
+    max(perm.plan_mat_roverhead) as max_perm_mat,
+    (avg(perm.plan_mat_roverhead)/avg(perm.plan_all_roverhead))*100 as perm_mal,
+    avg(perm.plan_all_roverhead) / avg(sd.plan_all_roverhead) as speedup,
+    
+    avg(sd.plan_all_overhead) as osd_capture, avg(perm.plan_all_overhead) as operm_capture,
+    avg(perm.plan_all_overhead) / avg(sd.plan_all_overhead) as ospeedup
+    from micro_perm_metrics as perm
+    JOIN micro_sd_metrics as sd USING ({g}) 
+    WHERE sd.query<>'INDEX_JOIN_mtm' and sd.query<>'INDEX_JOIN'
+    GROUP BY perm.lineage_type
+    """).fetchdf())
+print(f"*** summary all\n", con.execute(f"""select 
+    avg(sd.plan_all_roverhead) as sd_capture,
+    max(sd.plan_all_roverhead) as max_sd_capture,
+    min(sd.plan_all_roverhead) as min_sd_capture
+    from  micro_sd_metrics as sd
+    where 
+    sd.query='HASH_JOIN_mtm'
+    """).fetchdf())
+
+print(f"*** summary all\n", con.execute(f"""select 
+    avg(sd.plan_all_roverhead) as sd_capture,
+    max(sd.plan_all_roverhead) as max_sd_capture,
+    min(sd.plan_all_roverhead) as min_sd_capture
+    from  micro_sd_metrics as sd
+    where sd.query='PERFECT_HASH_GROUP_BY'
+    """).fetchdf())
+
+print(f"*** summary perm  group by\n", con.execute(f"""select 
+    avg(sd.plan_all_roverhead) as sd_capture,
+    max(sd.plan_all_roverhead) as max_sd_capture,
+    min(sd.plan_all_roverhead) as min_sd_capture,
+    avg(sd.plan_execution_roverhead) as perm_e,
+    max(sd.plan_execution_roverhead) as maxperm_e,
+    avg(sd.plan_mat_roverhead) as perm_mat,
+    max(sd.plan_mat_roverhead) as max_perm_mat,
+    (avg(sd.plan_mat_roverhead)/avg(sd.plan_all_roverhead))*100 as perm_mal,
+    (avg(sd.plan_execution_roverhead)/avg(sd.plan_all_roverhead))*100 as perm_eal
+    from  micro_perm_metrics as sd
+    where sd.query='PERFECT_HASH_GROUP_BY' or sd.query='HASH_GROUP_BY'
+    """).fetchdf())
+print(f"*** summary perm no group by\n", con.execute(f"""select 
+    avg(sd.plan_all_roverhead) as sd_capture,
+    max(sd.plan_all_roverhead) as max_sd_capture,
+    min(sd.plan_all_roverhead) as min_sd_capture,
+    avg(sd.plan_execution_roverhead) as perm_e,
+    max(sd.plan_execution_roverhead) as maxperm_e,
+    avg(sd.plan_mat_roverhead) as perm_mat,
+    max(sd.plan_mat_roverhead) as max_perm_mat,
+    (avg(sd.plan_mat_roverhead)/avg(sd.plan_all_roverhead))*100 as perm_mal,
+    (avg(sd.plan_execution_roverhead)/avg(sd.plan_all_roverhead))*100 as perm_eal
+    from  micro_perm_metrics as sd
+    where sd.query<>'PERFECT_HASH_GROUP_BY' and sd.query<>'HASH_GROUP_BY'
+    """).fetchdf())

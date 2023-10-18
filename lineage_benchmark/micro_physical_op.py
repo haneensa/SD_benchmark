@@ -17,11 +17,13 @@ def fill_results(r, query, runtime, n1, n2, sel, skew, ncol, groups,
     index_scan, output, stats, lineage_type, notes, plan_timings]
 
 
-def getStatsWrap(con, q, args):
+def getStatsWrap(con, q, args, mem):
     stats = None
     if args.enable_lineage and args.stats:
         lineage_size, lineage_count, nchunks, postprocess_time= getStats(con, q)
-        stats = "{},{},{},{}".format(lineage_size, lineage_count, nchunks, postprocess_time*1000)
+        stats = "{},{},{},{},{}".format(lineage_size, lineage_count, nchunks, postprocess_time*1000, mem)
+    else:
+        stats = f"{mem}"
     return stats
 
 def parse_plan_timings(qid):
@@ -81,11 +83,11 @@ def ScanMicro(con, args, folder, lineage_type, groups, cardinality, results):
             q = "SELECT {}* FROM zipf1".format(perm_rid)
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
-            avg, df = Run(q, args, con, table_name)
+            avg, df, mem = Run(q, args, con, table_name)
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-            stats = getStatsWrap(con, q, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query="SEQ", runtime=avg, n1=card, n2=None, sel=None, skew=None, ncol=p, groups=g,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))
@@ -115,11 +117,11 @@ def OrderByMicro(con, args, folder, lineage_type, groups, cardinality, results):
             table_name = None
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
-            avg, df = Run(q, args, con, table_name)
+            avg, df, mem = Run(q, args, con, table_name)
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-            stats = getStatsWrap(con, q, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query="ORDER_BY", runtime=avg, n1=card, n2=None, sel=None, skew=None, ncol=p, groups=g,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))
@@ -147,11 +149,11 @@ def core_filter(con, args):
     table_name = None
     q = "create table t1_perm_lineage as "+ q
     table_name='t1_perm_lineage'
-    avg, df = Run(q, args, con, table_name)
+    avg, df, mem = Run(q, args, con, table_name)
     df = con.execute("select count(*) as c from t1_perm_lineage").fetchdf()
     output_size = df.loc[0,'c']
     con.execute("drop table t1_perm_lineage")
-    return q, output_size, avg
+    return q, output_size, avg, mem
 
 ################### Filter ###########################
 # predicate: z=0
@@ -172,8 +174,8 @@ def FilterMicro(con, args, folder, lineage_type, selectivity, cardinality, resul
         tname = setup_filter(con, "t1", lineage_type, sel, card, p, folder)
         
         for r in range(args.r):
-            q, output_size, avg = core_filter(con, args)
-            stats = getStatsWrap(con, q, args)
+            q, output_size, avg, mem = core_filter(con, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query=name, runtime=avg, n1=card, n2=None, sel=sel, skew=None, ncol=p, groups=None,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))
@@ -201,12 +203,12 @@ def core_aggs(args, con):
 
     q = "create table zipf1_perm_lineage as "+ q
     table_name='zipf1_perm_lineage'
-    avg, df = Run(q, args, con, table_name)
+    avg, df, mem = Run(q, args, con, table_name)
     df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
     output_size = df.loc[0,'c']
     con.execute("drop table zipf1_perm_lineage")
 
-    return q, output_size, avg, method
+    return q, output_size, avg, method, mem
 
 ################### int Hash Aggregate  ############
 ##  Group by: 'z' 
@@ -234,8 +236,8 @@ def int_hashAgg(con, args, folder, lineage_type, groups, cardinality, results, a
 
         for r in range(args.r):
             print(r, filename, g, card)
-            q, output_size, avg, method = core_aggs(args, con)
-            stats = getStatsWrap(con, q, args)
+            q, output_size, avg, method, mem = core_aggs(args, con)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query=agg_type, runtime=avg, n1=card, n2=None, sel=None, skew=None, ncol=p, groups=g,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type+method, notes=args.notes, plan_timings=plan_timings))
@@ -273,11 +275,11 @@ def hashAgg(con, args, folder, lineage_type, groups, cardinality, results):
                 q = "SELECT zipf1.rowid, z FROM (SELECT z, count(*) FROM zipf1 GROUP BY z) join zipf1 using (z)"
             q = "create table zipf1_perm_lineage as "+ q
             table_name='zipf1_perm_lineage'
-            avg, df = Run(q, args, con, table_name)
+            avg, df, mem = Run(q, args, con, table_name)
             df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
             output_size = df.loc[0,'c']
             con.execute("drop table zipf1_perm_lineage")
-            stats = getStatsWrap(con, q, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query="HASH_GROUP_BY", runtime=avg, n1=card, n2=None, sel=None, skew=None, ncol=p, groups=g,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type+method, notes=args.notes, plan_timings=plan_timings))
@@ -354,11 +356,11 @@ def core_join_less(con, args, pred):
     table_name = None
     q = "create table zipf1_perm_lineage as "+ q
     table_name='zipf1_perm_lineage'
-    avg, df = Run(q, args, con, table_name)
+    avg, df, mem = Run(q, args, con, table_name)
     df = con.execute("select count(*) as c from zipf1_perm_lineage").fetchdf()
     output_size = df.loc[0,'c']
     con.execute("drop table zipf1_perm_lineage")
-    return q, output_size, avg
+    return q, output_size, avg, mem
 
 ################### Joins ###########################
 def join_lessthan(con, args, folder, lineage_type, cardinality, results, op, force_join, pred, sels=[0.0]):
@@ -384,10 +386,10 @@ def join_lessthan(con, args, folder, lineage_type, cardinality, results, op, for
         for r in range(args.r):
             args.qid='ineq_ltype{}g{}card{}p{}'.format(lineage_type,sel, card, p)
             
-            q, output_size, avg = core_join_less(con, args, pred)
+            q, output_size, avg, mem = core_join_less(con, args, pred)
             print(avg, output_size)
 
-            stats = getStatsWrap(con, q, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query=op, runtime=avg, n1=card[0], n2=card[1], sel=sel, skew=None, ncol=p, groups=None,
                     index_scan=None, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))
@@ -428,12 +430,12 @@ def core_pkfk(con, args, op, index_scan):
     table_name = None
     q = "create table perm_lineage as "+ q
     table_name='perm_lineage'
-    avg, df = Run(q, args, con, table_name)
+    avg, df, mem = Run(q, args, con, table_name)
     df = con.execute("select count(*) as c from perm_lineage").fetchdf()
     output_size = df.loc[0,'c']
     con.execute("drop table perm_lineage")
 
-    return q, output_size, avg
+    return q, output_size, avg, mem
 
 def FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan):
     # SELECT * FROM gids,zipf WHERE gids.id=zipf.z. zipf.z 
@@ -453,10 +455,10 @@ def FKPK(con, args, folder, lineage_type, groups, cardinality, a_list, results, 
             args.qid='ineq_ltype{}g{}card{}p{}'.format(lineage_type,g, card, p, a)
             setup_ft(con, 10000, card, a, op, folder)
             for r in range(args.r):
-                q, output_size, avg = core_pkfk(con, args, op, index_scan)
+                q, output_size, avg, mem = core_pkfk(con, args, op, index_scan)
                 print(avg, output_size)
                 
-                stats = getStatsWrap(con, q, args)
+                stats = getStatsWrap(con, q, args, mem)
                 plan_timings = parse_plan_timings(args.qid)
                 results.append(fill_results(r=r, query=op, runtime=avg, n1=card, n2=g, sel=None, skew=a, ncol=p, groups=g,
                         index_scan=index_scan, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))
@@ -495,12 +497,12 @@ def core_mtn(con, args, op, index_scan):
     table_name = None
     q = "create table perm_lineage as "+ q
     table_name='perm_lineage'
-    avg, df = Run(q, args, con, table_name)
+    avg, df, mem = Run(q, args, con, table_name)
     df = con.execute("select count(*) as c from perm_lineage").fetchdf()
     output_size = df.loc[0,'c']
     con.execute("drop table perm_lineage")
 
-    return q, output_size, avg
+    return q, output_size, avg, mem
 
 def MtM(con, args, folder, lineage_type, groups, cardinality, a_list, results, op, index_scan):
     print("------------ Test M:N ", op, index_scan)
@@ -526,11 +528,11 @@ def MtM(con, args, folder, lineage_type, groups, cardinality, a_list, results, o
         args.qid='ineq_ltype{}g{}card{}p{}'.format(lineage_type,g, card, p, a)
         setup_table(con, g2, card, 1, False, folder, "zipf2")
         for r in range(args.r):
-            q, output_size, avg = core_mtn(con, args, op, index_scan)
+            q, output_size, avg, mem = core_mtn(con, args, op, index_scan)
             sel = float(output_size) / (card*n1)
             print("\n", avg, output_size, sel)
             
-            stats = getStatsWrap(con, q, args)
+            stats = getStatsWrap(con, q, args, mem)
             plan_timings = parse_plan_timings(args.qid)
             results.append(fill_results(r=r, query=op+"_mtm", runtime=avg, n1=card, n2=g, sel=sel, skew=a, ncol=p, groups=g,
                     index_scan=index_scan, output=output_size, stats=stats, lineage_type=lineage_type, notes=args.notes, plan_timings=plan_timings))

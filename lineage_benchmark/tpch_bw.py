@@ -41,7 +41,7 @@ def PersistResults(results, args):
         csvwriter.writerows(results)
 
 results = []
-base = "extension/tpch/dbgen/queries"
+base = "queries"
 con = duckdb.connect(database=':memory:', read_only=False)
 
 # generate TPCH workload
@@ -50,7 +50,7 @@ if args.threads > 1:
     con.execute("PRAGMA threads="+str(args.threads))
     con.execute("PRAGMA force_parallelism")
 
-for qid in range(1, 23):
+for qid in range(11, 12):
     print("=======" + str(qid) + "========")
     
     # collect query attributes to reference when running
@@ -111,7 +111,7 @@ for qid in range(1, 23):
         tpch = " ".join(tpch.split()) + " " + predicate
         text_file.close()
         # run perm query
-        avg, _ = Run(tpch, args, con)
+        avg, _, _ = Run(tpch, args, con)
         # return how many tuples returned by the BW query
         output_size = con.execute(tpch).fetchdf().loc[0, 'c']
         if avg < tmin: tmin = avg
